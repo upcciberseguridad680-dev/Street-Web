@@ -112,6 +112,9 @@
 {% endblock %}
 
 {% block scripts %}
+<script id="heatmap-data" type="application/json">
+    {{ heatmap_data | safe }}
+</script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Initialize the map
@@ -125,7 +128,7 @@
         }).addTo(map);
 
         // Heatmap data
-        const heatData = {{ heatmap_data | safe }};
+        const heatData = JSON.parse(document.getElementById('heatmap-data').textContent);
 
         // Convert to format needed for Leaflet.heat
         const heatPoints = heatData.map(point => [point.lat, point.lng, point.intensity]);

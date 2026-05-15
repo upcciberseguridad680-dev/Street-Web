@@ -3,7 +3,7 @@ import os
 from flask_wtf.csrf import CSRFProtect
 from app.models import db
 from config import config
-from datetime import datetime
+from datetime import datetime, timezone
 
 def create_app():
     app = Flask(__name__)
@@ -29,7 +29,7 @@ def create_app():
 
     @app.context_processor
     def inject_template_helpers():
-        return {'now': lambda: datetime.utcnow()}
+        return {'now': lambda: datetime.now(timezone.utc)}
 
     # Initialize database and add sample data
     with app.app_context():
@@ -58,7 +58,7 @@ def create_app():
     @app.route('/health')
     def health():
         from flask import jsonify
-        return jsonify({"status": "healthy", "timestamp": datetime.utcnow().isoformat()}), 200
+        return jsonify({"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}), 200
 
     return app
 
