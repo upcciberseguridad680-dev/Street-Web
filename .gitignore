@@ -129,6 +129,9 @@ logs
 *.sln
 *.swp
 
+# Claude Code settings
+.claude/
+
 # OS
 .DS_Store
 Thumbs.db
