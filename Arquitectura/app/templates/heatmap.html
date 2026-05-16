@@ -182,24 +182,26 @@
         legend.onAdd = function(map) {
             const div = L.DomUtil.create('div', 'info legend');
             const grades = [1, 2, 3, 4, 5];
-            const labels = [];
-            let from, to;
+            const title = document.createElement('strong');
+            title.textContent = 'Severidad';
+            div.appendChild(title);
 
-            for (let i = 0; i < grades.length; i++) {
-                from = grades[i];
-                to = grades[i + 1];
-
-                const color = getColorBySeverity(from);
+            grades.forEach(severity => {
                 const labelItem = document.createElement('div');
-                const colorBox = document.createElement('i');
-                colorBox.style.background = color;
-                const text = document.createTextNode(' ' + from + (to ? '&ndash;' + to : '+'));
+                labelItem.className = 'legend-item';
+
+                const colorBox = document.createElement('span');
+                colorBox.className = 'legend-color';
+                colorBox.style.backgroundColor = getColorBySeverity(severity);
+
+                const text = document.createElement('span');
+                text.textContent = severity.toString();
+
                 labelItem.appendChild(colorBox);
                 labelItem.appendChild(text);
-                labels.push(labelItem.outerHTML);
-            }
+                div.appendChild(labelItem);
+            });
 
-            div.innerHTML = '<strong>Severidad</strong><br>' + labels.join('<br>');
             return div;
         };
 

@@ -142,6 +142,38 @@ h1, h2, h3, h4, h5, h6, .navbar-brand, .stat-label {
     box-shadow: var(--glow-cyan);
 }
 
+.info.legend {
+    background: rgba(10, 10, 12, 0.92);
+    border: 1px solid var(--accent-cyan);
+    box-shadow: var(--glow-cyan);
+    color: var(--text-main);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    line-height: 1.2;
+    padding: 10px 12px;
+}
+
+.info.legend strong {
+    color: var(--accent-cyan);
+    display: block;
+    margin-bottom: 6px;
+}
+
+.legend-item {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+    margin-top: 5px;
+}
+
+.legend-color {
+    border: 1px solid rgba(255, 255, 255, 0.75);
+    display: inline-block;
+    flex: 0 0 auto;
+    height: 10px;
+    width: 28px;
+}
+
 .filter-section {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
