@@ -1,7 +1,7 @@
 services:
   # --- PRODUCCIÓN ---
   - type: web
-    name: streetweb-backend-prod
+    name: streetweb-prod
     runtime: python
     rootDir: Arquitectura
     buildCommand: pip install -r requirements.txt
@@ -15,24 +15,9 @@ services:
       - key: APP_ENV
         value: production
 
-  - type: web
-    name: streetweb-frontend-prod
-    runtime: python
-    rootDir: Arquitectura
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --bind 0.0.0.0:$PORT run:app
-    healthCheckPath: /health
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.9
-      - key: SECRET_KEY
-        generateValue: true
-      - key: APP_ENV
-        value: production_frontend
-
   # --- DESARROLLO ---
   - type: web
-    name: streetweb-backend-dev
+    name: streetweb-dev
     runtime: python
     rootDir: Arquitectura
     buildCommand: pip install -r requirements.txt
@@ -45,18 +30,3 @@ services:
         generateValue: true
       - key: APP_ENV
         value: development
-
-  - type: web
-    name: streetweb-frontend-dev
-    runtime: python
-    rootDir: Arquitectura
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --bind 0.0.0.0:$PORT run:app
-    healthCheckPath: /health
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.9
-      - key: SECRET_KEY
-        generateValue: true
-      - key: APP_ENV
-        value: development_frontend
