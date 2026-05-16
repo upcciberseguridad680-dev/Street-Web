@@ -1,0 +1,10 @@
+.git
+.github
+.venv
+**/__pycache__/
+**/*.pyc
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+**/node_modules/
+Arquitectura/app/static/frontend/

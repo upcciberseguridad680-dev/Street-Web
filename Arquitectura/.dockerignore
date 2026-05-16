@@ -26,3 +26,11 @@ logs
 .github
 docs
 tests
+__pycache__/
+**/__pycache__/
+**/*.pyc
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+frontend/node_modules/
+app/static/frontend/

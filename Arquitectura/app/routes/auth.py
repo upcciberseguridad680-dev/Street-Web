@@ -1,5 +1,7 @@
-from flask import Blueprint, render_template, request, redirect, url_for, session, flash
+from flask import Blueprint, request, redirect, url_for, session, flash
+from flask_wtf.csrf import generate_csrf
 from app.models import db, User
+from app.frontend import render_frontend
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -12,16 +14,16 @@ def login():
         if user and user.check_password(password):
             session['user_id'] = user.id
             session['username'] = user.username
-            flash('Login successful!', 'success')
+            flash('Inicio de sesión correcto.', 'success')
             return redirect(url_for('main.dashboard'))
         else:
-            flash('Invalid username or password', 'error')
-    return render_template('login.html')
+            flash('Usuario o contraseña inválidos.', 'error')
+    return render_frontend('login', csrfToken=generate_csrf())
 
 @auth_bp.route('/logout')
 def logout():
     session.clear()
-    flash('You have been logged out', 'info')
+    flash('Sesión cerrada.', 'info')
     return redirect(url_for('auth.login'))
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
@@ -31,15 +33,15 @@ def register():
         email = request.form['email']
         password = request.form['password']
         if User.query.filter_by(username=username).first():
-            flash('Username already exists', 'error')
+            flash('El usuario ya existe.', 'error')
             return redirect(url_for('auth.register'))
         if User.query.filter_by(email=email).first():
-            flash('Email already registered', 'error')
+            flash('El email ya está registrado.', 'error')
             return redirect(url_for('auth.register'))
         user = User(username=username, email=email)
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
-        flash('Registration successful! Please login.', 'success')
+        flash('Registro completado. Inicia sesión.', 'success')
         return redirect(url_for('auth.login'))
-    return render_template('register.html')
+    return render_frontend('register', csrfToken=generate_csrf())

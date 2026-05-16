@@ -1,3 +1,13 @@
+FROM node:24-alpine AS frontend-build
+
+WORKDIR /src
+
+COPY Arquitectura/frontend/package*.json ./Arquitectura/frontend/
+RUN cd Arquitectura/frontend && npm ci
+
+COPY Arquitectura/frontend ./Arquitectura/frontend
+RUN cd Arquitectura/frontend && npm run build
+
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -15,6 +25,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the application
 COPY Arquitectura/ .
+COPY --from=frontend-build /src/Arquitectura/app/static/frontend /app/app/static/frontend
 
 # Create a non-root user for security
 RUN adduser --disabled-password --gecos '' appuser && chown -R appuser:appuser /app

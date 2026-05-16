@@ -9,7 +9,7 @@ def create_app():
     app = Flask(__name__)
 
     # Load configuration
-    env = os.environ.get('FLASK_ENV', 'development')
+    env = os.environ.get('APP_ENV') or os.environ.get('FLASK_ENV', 'development')
     app.config.from_object(config.get(env, config['default']))
 
     csrf = CSRFProtect(app)

@@ -1,6 +1,8 @@
-from flask import Blueprint, render_template, redirect, url_for, session
+from flask import Blueprint, redirect, url_for, session
+from sqlalchemy import func
 from app.models import db, Incident
 from app.utils import login_required
+from app.frontend import render_frontend, serialize_incident
 
 main_bp = Blueprint('main', __name__)
 
@@ -19,8 +21,23 @@ def dashboard():
     incident_types = [t[0] for t in incident_types]
     districts = db.session.query(Incident.district.distinct()).all()
     districts = [d[0] for d in districts]
-    return render_template('dashboard.html',
-                            total_incidents=total_incidents,
-                            recent_incidents=recent_incidents,
-                            incident_types=incident_types,
-                            districts=districts)
+    type_counts = (
+        db.session.query(Incident.incident_type, func.count(Incident.id))
+        .group_by(Incident.incident_type)
+        .order_by(func.count(Incident.id).desc())
+        .all()
+    )
+
+    return render_frontend(
+        'dashboard',
+        dashboard={
+            'totalIncidents': total_incidents,
+            'recentIncidents': [serialize_incident(incident) for incident in recent_incidents],
+            'incidentTypes': incident_types,
+            'districts': districts,
+            'typeCounts': [
+                {'label': incident_type, 'value': count}
+                for incident_type, count in type_counts
+            ],
+        },
+    )

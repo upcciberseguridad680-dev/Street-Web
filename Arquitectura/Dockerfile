@@ -1,3 +1,13 @@
+FROM node:24-alpine AS frontend-build
+
+WORKDIR /app
+
+COPY frontend/package*.json ./frontend/
+RUN cd frontend && npm ci
+
+COPY frontend ./frontend
+RUN cd frontend && npm run build
+
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -15,6 +25,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application
 COPY . .
+COPY --from=frontend-build /app/app/static/frontend /app/app/static/frontend
 
 # Create a non-root user for security
 RUN adduser --disabled-password --gecos '' appuser && chown -R appuser:appuser /app

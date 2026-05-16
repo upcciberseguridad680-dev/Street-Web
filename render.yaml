@@ -4,7 +4,7 @@ services:
     name: streetweb-prod
     runtime: python
     rootDir: Arquitectura
-    buildCommand: pip install -r requirements.txt
+    buildCommand: bash build.sh
     startCommand: gunicorn --bind 0.0.0.0:$PORT run:app
     healthCheckPath: /health
     envVars:
@@ -20,7 +20,7 @@ services:
     name: streetweb-dev
     runtime: python
     rootDir: Arquitectura
-    buildCommand: pip install -r requirements.txt
+    buildCommand: bash build.sh
     startCommand: gunicorn --bind 0.0.0.0:$PORT run:app
     healthCheckPath: /health
     envVars:

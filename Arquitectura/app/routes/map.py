@@ -1,7 +1,7 @@
-from flask import Blueprint, render_template, request, redirect, url_for, session, jsonify
+from flask import Blueprint, request
 from app.models import db, Incident
 from app.utils import login_required
-import json
+from app.frontend import render_frontend, serialize_incident
 from datetime import datetime
 
 map_bp = Blueprint('map', __name__)
@@ -43,11 +43,21 @@ def heatmap():
             'intensity': incident.severity,
             'district': incident.district,
             'type': incident.incident_type,
-            'description': incident.description,
-            'date': incident.date_reported.strftime('%Y-%m-%d %H:%M')
+            'description': incident.description or '',
+            'date': incident.date_reported.strftime('%Y-%m-%d %H:%M') if incident.date_reported else 'Sin fecha'
         })
-    return render_template('heatmap.html',
-                            incidents=incidents,
-                            heatmap_data=json.dumps(heatmap_data),
-                            incident_types=incident_types,
-                            districts=districts)
+    return render_frontend(
+        'heatmap',
+        heatmap={
+            'incidents': [serialize_incident(incident) for incident in incidents],
+            'heatmapPoints': heatmap_data,
+            'incidentTypes': incident_types,
+            'districts': districts,
+            'filters': {
+                'type': incident_type,
+                'district': district,
+                'startDate': start_date,
+                'endDate': end_date,
+            },
+        },
+    )

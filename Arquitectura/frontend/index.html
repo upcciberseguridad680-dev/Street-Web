@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Street Web</title>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    window.__STREET_WEB__ = {
+      page: "dashboard",
+      user: { id: 1, username: "admin" },
+      flashMessages: [],
+      dashboard: {
+        totalIncidents: 6,
+        recentIncidents: [],
+        incidentTypes: ["Robo", "Asalto", "Hurto"],
+        districts: ["Miraflores", "San Isidro", "Callao"],
+        typeCounts: [
+          { label: "Robo", value: 2 },
+          { label: "Asalto", value: 1 },
+          { label: "Hurto", value: 1 }
+        ]
+      }
+    };
+  </script>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+</html>

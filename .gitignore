@@ -97,6 +97,9 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+node_modules/
+Arquitectura/frontend/node_modules/
+*.tsbuildinfo
 
 # Spyder project settings
 .spyderproject

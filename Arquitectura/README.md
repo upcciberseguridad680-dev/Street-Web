@@ -17,7 +17,7 @@ Una aplicación web para visualizar y monitorear datos de inseguridad ciudadana 
 ## Arquitectura
 
 - **Backend**: Python con Flask y SQLAlchemy
-- **Frontend**: HTML5, CSS3, JavaScript con Leaflet.js para mapas
+- **Frontend**: React, TypeScript y Vite, con Leaflet.js para mapas
 - **Base de datos**: SQLite (desarrollo) / PostgreSQL (producción en Render)
 - **Mapas**: Leaflet.js con plugin de heatmap
 - **CI/CD**: GitHub Actions para validación y Render para despliegue
@@ -49,12 +49,20 @@ Una aplicación web para visualizar y monitorear datos de inseguridad ciudadana 
    pip install -r requirements.txt
    ```
 
-4. Ejecutar la aplicación:
+4. Compilar el frontend:
+   ```bash
+   cd frontend
+   npm install
+   npm run build
+   cd ..
+   ```
+
+5. Ejecutar la aplicación:
    ```bash
    python run.py
    ```
 
-5. Acceder en: http://localhost:5000
+6. Acceder en: http://localhost:5000
 
 ## Despliegue con Docker
 
@@ -82,7 +90,7 @@ El repositorio incluye un `render.yaml` en la raíz para crear el servicio desde
 Configuración equivalente:
 
 - Root Directory: `Arquitectura`
-- Build Command: `pip install -r requirements.txt`
+- Build Command: `bash build.sh`
 - Start Command: `gunicorn --bind 0.0.0.0:$PORT run:app`
 - Health Check Path: `/health`
 
