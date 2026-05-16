@@ -4,6 +4,16 @@ from app.utils import login_required
 
 api_bp = Blueprint('api', __name__)
 
+@api_bp.route('/api')
+def api_home():
+    return jsonify({
+        "status": "success",
+        "message": "Street Web API is running",
+        "endpoints": {
+            "incidents": "/api/incidents"
+        }
+    })
+
 @api_bp.route('/api/incidents')
 @login_required
 def api_incidents():
