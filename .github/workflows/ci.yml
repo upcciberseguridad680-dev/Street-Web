@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 jobs:
   test:
@@ -48,3 +48,13 @@ jobs:
         run: |
           pip install bandit
           bandit -r . -ll -ii --exclude ./.venv,./venv,./__pycache__,./frontend/node_modules
+
+      - name: Desplegar en Developer Render
+        if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+        run: |
+          curl -f "${{ secrets.SECRET_DEVELOPER }}"
+
+      - name: Desplegar en Production Render
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          curl -f "${{ secrets.SECRET_PRODUCTION }}"
