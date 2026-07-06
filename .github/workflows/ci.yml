@@ -163,6 +163,7 @@ jobs:
       - name: Run OWASP ZAP baseline scan (host network)
         id: zap
         run: |
+          set -x
           docker run --rm \
             --network host \
             -v "${{ github.workspace }}/zap-out:/zap/wrk:rw" \
