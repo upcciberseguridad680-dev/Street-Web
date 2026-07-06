@@ -11,7 +11,7 @@ Una aplicación web para visualizar y monitorear datos de inseguridad ciudadana 
 - **API REST**: Endpoints para acceder a los datos de incidentes
 - **CI**: Verificación automática con GitHub Actions
 - **Deploy en Render**: Configuración declarativa con `render.yaml`
-- **Análisis de seguridad**: Escaneo SAST integrado con Bandit
+- **Análisis de seguridad**: Escaneo SAST integrado con Bandit, CodeQL y DAST con OWASP ZAP
 - **Dockerizado**: Fácil despliegue en cualquier entorno
 
 ## Arquitectura

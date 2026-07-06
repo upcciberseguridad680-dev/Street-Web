@@ -140,12 +140,6 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y jq
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action=v2
-      - name: Set up ZAP output directory
-        run: |
-          mkdir -p zap-out
-          chmod 777 zap-out
-      - name: Create Docker network
-        run: docker network create zapnet
       - name: Build Docker image
         run: |
           cd Arquitectura
@@ -162,6 +156,12 @@ jobs:
             echo "Waiting for app..."
             sleep 2
           done
+      - name: Create Docker network
+        run: docker network create zapnet
+      - name: Set up ZAP output directory
+        run: |
+          mkdir -p zap-out
+          chmod 777 zap-out
       - name: Run OWASP ZAP baseline scan
         id: zap
         run: |
