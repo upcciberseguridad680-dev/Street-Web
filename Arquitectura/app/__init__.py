@@ -60,6 +60,15 @@ def create_app():
         from flask import jsonify
         return jsonify({"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}), 200
 
+    @app.after_request
+    def set_security_headers(response):
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['Content-Security-Policy'] = "default-src 'self'"
+        response.headers['Permissions-Policy'] = 'geolocation=(), camera=(), microphone=()'
+        response.headers['Cross-Origin-Embedder-Policy'] = 'require-corp'
+        return response
+
     return app
 
 if __name__ == '__main__':
