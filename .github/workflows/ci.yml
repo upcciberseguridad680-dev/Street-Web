@@ -50,15 +50,25 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
+        uses: github/codeql-action/init@v3
         with:
           languages: python
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v2
+        uses: github/codeql-action/autobuild@v3
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
+        uses: github/codeql-action/analyze@v3
         with:
           category: "/language:${{matrix.language}}"
+      - name: Upload SARIF files
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-fs.sarif'
+          category: 'trivy-fs'
+      - name: Upload SARIF files (image)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-image.sarif'
+          category: 'trivy-image'
 
   trivy-fs:
     name: Trivy FS Scan
@@ -73,10 +83,6 @@ jobs:
           format: 'sarif'
           output: 'trivy-fs.sarif'
           severity: 'CRITICAL,HIGH'
-      - name: Upload Trivy FS results to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: 'trivy-fs.sarif'
       - name: Fail on high/critical vulnerabilities
         if: failure() && steps.trivy-fs.outcome == 'failure'
         run: exit 1
@@ -100,10 +106,6 @@ jobs:
           output: 'trivy-image.sarif'
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
-      - name: Upload Trivy image results
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: 'trivy-image.sarif'
       - name: Fail on high/critical vulnerabilities
         if: failure() && steps.trivy-image.outcome == 'failure'
         run: exit 1
@@ -166,10 +168,10 @@ jobs:
         uses: zaproxy/action-baseline@v0.9.0
         with:
           target: http://localhost:5000
-          rule_file: https://raw.githubusercontent.com/zaproxy/zaproxy/master/betas/scripts/ascanrules/AlertRules-1000000000.yaml
-          fail-on: true
-          fail-on-warning: true
-          docker-name: 'owasp/zap2docker-stable'
+          rules_file_name: https://raw.githubusercontent.com/zaproxy/zaproxy/master/betas/scripts/ascanrules/AlertRules-1000000000.yaml
+          fail_action: true
+          allow_issue_writing: false
+          docker_name: 'owasp/zap2docker-stable'
       - name: Stop container
         if: always()
         run: docker rm -f app
