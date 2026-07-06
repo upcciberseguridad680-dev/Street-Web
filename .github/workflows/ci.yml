@@ -144,9 +144,9 @@ jobs:
           docker build -t myapp:ci .
       - name: Start application container
         run: |
-          docker run -d --user root -p 5000:5000 --name app myapp:ci
+          docker run -d -p 5000:5000 --name app myapp:ci
           # wait for app to be ready (using root endpoint as health check)
-          for i in {1..60}; do
+          for i in {1..30}; do
             if curl -s http://localhost:5000/ > /dev/null; then
               echo "App is ready"
               break
@@ -155,15 +155,39 @@ jobs:
             sleep 2
           done
       - name: Run OWASP ZAP baseline scan
-        uses: zaproxy/action-baseline@v0.9.0
-        with:
-          target: http://localhost:5000
-          fail_action: true
-          allow_issue_writing: false
-          docker_name: 'ghcr.io/zaproxy/zaproxy:stable'
-      - name: Stop container
+        id: zap
+        run: |
+          # Create output directory
+          mkdir -p zap-out
+          # Run ZAP scan
+          docker run --rm \
+            -v "${{ github.workspace }}/zap-out:/zap/wrk:rw" \
+            -t ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py -t http://localhost:5000 -r zap-report.html -j zap-report.json -g zap-report.gfm
+          # Copy reports out (already mounted)
+          echo "ZAP scan completed"
+      - name: Stop application container
         if: always()
-        run: docker rm -f app
+        run: |
+          docker rm -f app
+      - name: Check ZAP results for alerts
+        run: |
+          cd zap-out
+          if [ -f zap-report.json ]; then
+            # Count number of alert objects
+            ALERT_COUNT=$(jq '.alerts | length' zap-report.json 2>/dev/null || echo 0)
+            echo "Found $ALERT_COUNT alerts"
+            if [ "$ALERT_COUNT" -gt 0 ]; then
+              echo "ZAP found security alerts, failing the job"
+              cat zap-report.json
+              exit 1
+            else
+              echo "No alerts found"
+            fi
+          else
+            echo "ZAP report not found"
+            exit 1
+          fi
 
   deploy-dev:
     name: Desplegar en Developer Render
