@@ -102,10 +102,16 @@ El pipeline incluye:
    - Checkout del código
    - Configuración de Python 3.11
    - Instalación de dependencias
+   - Compilación del frontend
    - Verificación de importación de la aplicación
    - Análisis de seguridad estático con Bandit
+   - Análisis de seguridad semántico con CodeQL
+   - Escaneo de vulnerabilidades en sistema de archivos con Trivy FS
+   - Escaneo de vulnerabilidades en imagen Docker con Trivy Image
+   - Auditoría de dependencias Python con pip-audit
+   - Pruebas de seguridad dinámicas (DAST) con OWASP ZAP
 
-El despliegue lo gestiona Render cuando el repositorio está conectado al servicio o Blueprint.
+El despliegue lo gestiona Render cuando el repositorio está conectado al servicio o Blueprint, pero solo después de que pasen todas las etapas de seguridad.
 
 ## Uso de la Aplicación
 
