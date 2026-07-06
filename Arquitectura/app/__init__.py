@@ -1,6 +1,8 @@
-from flask import Flask
+from flask import Flask, request
 import os
 from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from app.models import db
 from config import config
 from datetime import datetime, timezone
@@ -12,9 +14,23 @@ def create_app():
     env = os.environ.get('APP_ENV') or os.environ.get('FLASK_ENV', 'development')
     app.config.from_object(config.get(env, config['default']))
 
+    # Fail fast in production if required secrets are missing
+    if env == 'production':
+        required_secrets = ['SECRET_KEY', 'ADMIN_PASSWORD']
+        missing = [k for k in required_secrets if not os.environ.get(k)]
+        if missing:
+            raise RuntimeError(f"Missing required environment variables in production: {', '.join(missing)}")
+
     csrf = CSRFProtect(app)
 
     db.init_app(app)
+
+    # Initialize rate limiter
+    limiter = Limiter(
+        key_func=get_remote_address,
+        default_limits=["200 per hour"]
+    )
+    limiter.init_app(app)
 
     # Register Blueprints
     from app.routes.auth import auth_bp
@@ -64,9 +80,17 @@ def create_app():
     def set_security_headers(response):
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-Frame-Options'] = 'DENY'
-        response.headers['Content-Security-Policy'] = "default-src 'self'"
+        response.headers['Content-Security-Policy'] = (
+            "default-src 'self'; "
+            "script-src 'self' https://unpkg.com https://cdnjs.cloudflare.com; "
+            "style-src 'self' https://unpkg.com; "
+            "img-src 'self' data: https://*.basemaps.cartocdn.com"
+        )
         response.headers['Permissions-Policy'] = 'geolocation=(), camera=(), microphone=()'
         response.headers['Cross-Origin-Embedder-Policy'] = 'require-corp'
+        # HSTS - only add in production (when using HTTPS)
+        if request.is_secure:
+            response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains'
         return response
 
     return app
