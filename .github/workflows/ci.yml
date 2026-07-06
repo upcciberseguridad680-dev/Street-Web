@@ -160,32 +160,33 @@ jobs:
             echo "Waiting for app..."
             sleep 2
           done
-      - name: Run OWASP ZAP baseline scan (host network, ignore warnings)
+      - name: Run OWASP ZAP baseline scan (host network)
         id: zap
         run: |
           docker run --rm \
             --network host \
             -v "${{ github.workspace }}/zap-out:/zap/wrk:rw" \
             -t ghcr.io/zaproxy/zaproxy:stable \
-            zap-baseline.py -t http://localhost:5000 -z "-fail.on.warning false" -r zap-report.html -j zap-report.json -g zap-report.gfm
+            zap-baseline.py -t http://localhost:5000 -r zap-report.html -j zap-report.json -g zap-report.gfm
           echo "ZAP scan completed"
       - name: Stop application container
         if: always()
         run: |
           docker rm -f app
-      - name: Check ZAP results for alerts
+      - name: Check ZAP results for MEDIUM+HIGH severity alerts
         run: |
           cd zap-out
           if [ -f zap-report.json ]; then
-            # Count number of alert objects
-            ALERT_COUNT=$(jq '.alerts | length' zap-report.json 2>/dev/null || echo 0)
-            echo "Found $ALERT_COUNT alerts"
-            if [ "$ALERT_COUNT" -gt 0 ]; then
-              echo "ZAP found security alerts, failing the job"
-              cat zap-report.json
+            # Count alerts with riskcode >= 2 (Medium and High)
+            COUNT=$(jq '[.alerts[] | select(.riskcode >= 2)] | length' zap-report.json 2>/dev/null || echo 0)
+            echo "Found $COUNT MEDIUM/HIGH severity alerts"
+            if [ "$COUNT" -gt 0 ]; then
+              echo "ZAP found MEDIUM/HIGH severity security alerts, failing the job"
+              # Optionally print the alerts for debugging
+              jq '.alerts[] | select(.riskcode >= 2)' zap-report.json
               exit 1
             else
-              echo "No alerts found"
+              echo "No MEDIUM/HIGH alerts found"
             fi
           else
             echo "ZAP report not found"
