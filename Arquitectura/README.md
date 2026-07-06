@@ -115,13 +115,6 @@ El despliegue lo gestiona Render cuando el repositorio está conectado al servic
 4. **Mapa de Calor**: Visualiza los incidentes en un mapa interactivo con filtros
 5. **API**: Accede a `/api/incidents` para obtener los datos en formato JSON
 
-## Credenciales de Acceso (Desarrollo)
-
-Para facilitar las pruebas, se crea automáticamente un usuario administrador:
-- Usuario: `admin`
-- Contraseña: `admin123` 
-  **⚠️ Importante: Cambiar esta contraseña en producción**
-
 ## Licencia
 
 Este proyecto está destinado para fines educativos en el curso de Arquitectura de Aplicaciones.
