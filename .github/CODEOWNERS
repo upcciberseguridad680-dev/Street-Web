@@ -1,0 +1,15 @@
+# .github/CODEOWNERS
+# Backend
+Arquitectura/backend/          @Pedrobravo-notfound @Pedro-Bravo-IA
+# Frontend
+Arquitectura/frontend/         @Pedrobravo-notfound @Pedro-Bravo-IA
+# Infraestructura / Despliegue
+Dockerfile                     @Pedrobravo-notfound @Pedro-Bravo-IA
+render.yaml                    @Pedrobravo-notfound @Pedro-Bravo-IA
+# CI / GitHub Actions
+.github/workflows/             @Pedrobravo-notfound @Pedro-Bravo-IA
+# Documentation
+docs/                          @Pedrobravo-notfound @Pedro-Bravo-IA
+README.md                      @Pedrobravo-notfound @Pedro-Bravo-IA
+# Default
+*                              @Pedrobravo-notfound @Pedro-Bravo-IA

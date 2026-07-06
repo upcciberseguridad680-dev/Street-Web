@@ -1,50 +1,236 @@
 name: CI
-
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 jobs:
   test:
-    name: Tests y analisis de seguridad
+    name: Tests y análisis de seguridad
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: Arquitectura
-
     steps:
-      - name: Checkout codigo
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v6
       - name: Configurar Python 3.11
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
-
       - name: Configurar Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "24"
           cache: npm
           cache-dependency-path: Arquitectura/frontend/package-lock.json
-
       - name: Instalar dependencias
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
       - name: Compilar frontend
         run: |
           cd frontend
           npm ci
           npm run build
-
-      - name: Verificar importacion de la aplicacion
-        run: python -c "from run import app; print('Aplicacion importada correctamente')"
-
-      - name: Analisis de seguridad con Bandit
+      - name: Verificar importación de la aplicación
+        run: python -c "from run import app; print('Aplicación importada correctamente')"
+      - name: Análisis de seguridad con Bandit
         run: |
           pip install bandit
           bandit -r . -ll -ii --exclude ./.venv,./venv,./__pycache__,./frontend/node_modules
+
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: python
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v2
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+        with:
+          category: "/language:${{matrix.language}}"
+
+  trivy-fs:
+    name: Trivy FS Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Trivy
+        uses: aquasecurity/trivy-action@0.23.0
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'sarif'
+          output: 'trivy-fs.sarif'
+          severity: 'CRITICAL,HIGH'
+      - name: Upload Trivy FS results to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-fs.sarif'
+      - name: Fail on high/critical vulnerabilities
+        if: failure() && steps.trivy-fs.outcome == 'failure'
+        run: exit 1
+
+  trivy-image:
+    name: Trivy Image Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Build Docker image
+        run: |
+          cd Arquitectura
+          docker build -t myapp:ci .
+      - name: Run Trivy image scan
+        uses: aquasecurity/trivy-action@0.23.0
+        with:
+          image-ref: 'myapp:ci'
+          format: 'sarif'
+          output: 'trivy-image.sarif'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+      - name: Upload Trivy image results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-image.sarif'
+      - name: Fail on high/critical vulnerabilities
+        if: failure() && steps.trivy-image.outcome == 'failure'
+        run: exit 1
+
+  pip-audit:
+    name: Pip-Audit Dependency Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          cd Arquitectura
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pip-audit
+      - name: Run pip-audit
+        id: pipaudit
+        run: |
+          cd Arquitectura
+          pip-audit --requirement=requirements.txt --format=json --output=pip-audit.json || true
+      - name: Check for vulnerabilities
+        run: |
+          cd Arquitectura
+          if [ -s pip-audit.json ]; then
+            echo "Vulnerabilities found:"
+            cat pip-audit.json
+            exit 1
+          else
+            echo "No vulnerabilities found."
+          fi
+
+  zap:
+    name: OWASP ZAP DAST Scan
+    runs-on: ubuntu-latest
+    services:
+      app:
+        image: myapp:ci
+        ports: [5000:5000]
+        options: >-
+          --health-cmd "curl -f http://localhost:5000/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Build Docker image
+        run: |
+          cd Arquitectura
+          docker build -t myapp:ci .
+      - name: Start application container
+        run: |
+          docker run -d -p 5000:5000 --name app myapp:ci
+          # wait for app to be ready
+          for i in {1..30}; do
+            if curl -s http://localhost:5000/health > /dev/null; then
+              echo "App is ready"
+              break
+            fi
+            echo "Waiting for app..."
+            sleep 2
+          done
+      - name: Run OWASP ZAP baseline scan
+        uses: zaproxy/action-baseline@v0.9.0
+        with:
+          target: http://localhost:5000
+          rule_file: https://raw.githubusercontent.com/zaproxy/zaproxy/master/betas/scripts/ascanrules/AlertRules-1000000000.yaml
+          fail-on: true
+          fail-on-warning: true
+          docker-name: 'owasp/zap2docker-stable'
+      - name: Stop container
+        if: always()
+        run: docker rm -f app
+
+  deploy-dev:
+    name: Desplegar en Developer Render
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    needs: [test, codeql, trivy-fs, trivy-image, pip-audit, zap]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Desplegar en Developer Render
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.SECRET_DEVELOPER }}
+        run: |
+          # Trim whitespace
+          RENDER_DEPLOY_HOOK=$(echo "$RENDER_DEPLOY_HOOK" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+          if [ -z "$RENDER_DEPLOY_HOOK" ]; then
+            echo "::error::Falta configurar el secret SECRET_DEVELOPER con el Deploy Hook de Render."
+            exit 1
+          fi
+          case "$RENDER_DEPLOY_HOOK" in
+            http://*|https://*) ;;
+            *)
+              echo "::error::El secret SECRET_DEVELOPER debe ser una URL válida de Render."
+              exit 1
+              ;;
+          esac
+          curl --fail --show-error --silent "$RENDER_DEPLOY_HOOK"
+
+  deploy-prod:
+    name: Desplegar en Production Render
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [test, codeql, trivy-fs, trivy-image, pip-audit, zap]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Desplegar en Production Render
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.SECRET_PRODUCTION }}
+        run: |
+          # Trim whitespace
+          RENDER_DEPLOY_HOOK=$(echo "$RENDER_DEPLOY_HOOK" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+          if [ -z "$RENDER_DEPLOY_HOOK" ]; then
+            echo "::error::Falta configurar el secret SECRET_PRODUCTION con el Deploy Hook de Render."
+            exit 1
+          fi
+          case "$RENDER_DEPLOY_HOOK" in
+            http://*|https://*) ;;
+            *)
+              echo "::error::El secret SECRET_PRODUCTION debe ser una URL válida de Render."
+              exit 1
+              ;;
+          esac
+          curl --fail --show-error --silent "$RENDER_DEPLOY_HOOK"
