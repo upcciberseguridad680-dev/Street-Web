@@ -142,11 +142,11 @@ jobs:
         run: |
           cd Arquitectura
           docker build -t myapp:ci .
-      - name: Start application container
+      - name: Start application container (host network)
         run: |
-          docker run -d -p 5000:5000 --name app myapp:ci
+          docker run -d --network host --name app myapp:ci
           # wait for app to be ready (using root endpoint as health check)
-          for i in {1..30}; do
+          for i in {1..60}; do
             if curl -s http://localhost:5000/ > /dev/null; then
               echo "App is ready"
               break
@@ -154,17 +154,18 @@ jobs:
             echo "Waiting for app..."
             sleep 2
           done
-      - name: Run OWASP ZAP baseline scan
+      - name: Run OWASP ZAP baseline scan (host network, root user)
         id: zap
         run: |
-          # Create output directory
+          # Create output directory on host
           mkdir -p zap-out
-          # Run ZAP scan
+          # Run ZAP container with host network and as root to avoid permission issues
           docker run --rm \
+            --network host \
+            --user root \
             -v "${{ github.workspace }}/zap-out:/zap/wrk:rw" \
             -t ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py -t http://localhost:5000 -r zap-report.html -j zap-report.json -g zap-report.gfm
-          # Copy reports out (already mounted)
           echo "ZAP scan completed"
       - name: Stop application container
         if: always()
