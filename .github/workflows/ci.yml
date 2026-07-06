@@ -66,7 +66,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Set up Trivy
-        uses: aquasecurity/trivy-action@0.23.0
+        uses: aquasecurity/trivy-action@v0.23.0
         with:
           scan-type: 'fs'
           ignore-unfixed: true
@@ -93,7 +93,7 @@ jobs:
           cd Arquitectura
           docker build -t myapp:ci .
       - name: Run Trivy image scan
-        uses: aquasecurity/trivy-action@0.23.0
+        uses: aquasecurity/trivy-action@v0.23.0
         with:
           image-ref: 'myapp:ci'
           format: 'sarif'
@@ -142,15 +142,6 @@ jobs:
   zap:
     name: OWASP ZAP DAST Scan
     runs-on: ubuntu-latest
-    services:
-      app:
-        image: myapp:ci
-        ports: [5000:5000]
-        options: >-
-          --health-cmd "curl -f http://localhost:5000/health || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - uses: actions/checkout@v6
       - name: Set up Docker Buildx
@@ -162,9 +153,9 @@ jobs:
       - name: Start application container
         run: |
           docker run -d -p 5000:5000 --name app myapp:ci
-          # wait for app to be ready
+          # wait for app to be ready (using root endpoint as health check)
           for i in {1..30}; do
-            if curl -s http://localhost:5000/health > /dev/null; then
+            if curl -s http://localhost:5000/ > /dev/null; then
               echo "App is ready"
               break
             fi
