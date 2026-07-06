@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify, render_template
 import os
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
@@ -31,6 +31,19 @@ def create_app():
         default_limits=["200 per hour"]
     )
     limiter.init_app(app)
+
+    # Custom error handler for rate limiting
+    @app.errorhandler(429)
+    def ratelimit_handler(e):
+        if request.path.startswith('/api/'):
+            return jsonify({
+                "error": "Rate limit exceeded",
+                "message": "Demasiadas solicitudes. Por favor, inténtelo de nuevo más tarde.",
+                "retry_after": getattr(e.description, 'retry_after', 60)
+            }), 429
+        else:
+            return render_template('errors/429.html',
+                                 retry_after=getattr(e.description, 'retry_after', 60)), 429
 
     # Register Blueprints
     from app.routes.auth import auth_bp
@@ -75,6 +88,16 @@ def create_app():
     def health():
         from flask import jsonify
         return jsonify({"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}), 200
+
+    # Custom error handler for 429 Too Many Requests
+    @app.errorhandler(429)
+    def ratelimit_handler(e):
+        from flask import jsonify, request
+        return jsonify({
+            "error": "Rate limit exceeded",
+            "message": "Demasiadas solicitudes. Por favor, inténtalo de nuevo más tarde.",
+            "retry_after": str(getattr(e, 'retry_after', 60))
+        }), 429
 
     @app.after_request
     def set_security_headers(response):

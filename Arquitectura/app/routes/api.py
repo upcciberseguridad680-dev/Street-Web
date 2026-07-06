@@ -1,10 +1,25 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request, current_app
 from app.models import Incident
 from app.utils import login_required
+from flask_limiter.util import get_remote_address
+
+def get_limiter():
+    """Get the limiter instance from the current app."""
+    limiter = current_app.extensions.get('limiter')
+    if limiter is None:
+        # Create a fallback limiter that doesn't actually limit (for safety)
+        class FallbackLimiter:
+            def limit(self, limit_string):
+                def decorator(f):
+                    return f
+                return decorator
+        return FallbackLimiter()
+    return limiter
 
 api_bp = Blueprint('api', __name__)
 
 @api_bp.route('/api')
+@get_limiter().limit("60 per minute", key_func=get_remote_address)
 def api_home():
     return jsonify({
         "status": "success",
@@ -16,6 +31,7 @@ def api_home():
 
 @api_bp.route('/api/incidents')
 @login_required
+@get_limiter().limit("30 per minute", key_func=get_remote_address)
 def api_incidents():
     incidents = Incident.query.all()
     result = []

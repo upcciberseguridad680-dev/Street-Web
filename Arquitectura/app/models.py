@@ -28,3 +28,11 @@ class Incident(db.Model):
     severity = db.Column(db.Integer, default=1)  # 1-5 scale
     date_reported = db.Column(db.DateTime, default=datetime.utcnow)
     source = db.Column(db.String(100))
+
+
+class LoginAttempt(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), nullable=False, index=True)
+    ip_address = db.Column(db.String(45), nullable=False)  # IPv6 compatible
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    success = db.Column(db.Boolean, default=False, nullable=False)

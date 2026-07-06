@@ -66,6 +66,9 @@ Una aplicación web para visualizar y monitorear datos de inseguridad ciudadana 
 
 ## Despliegue con Docker
 
+### Opción 1: Ejecución simple (datos no persistentes)
+> ⚠️ **Advertencia**: Con este método, los datos se perderán cuando el contenedor se detenga.
+
 1. Construir la imagen:
    ```bash
    docker build -t streetweb .
@@ -75,6 +78,40 @@ Una aplicación web para visualizar y monitorear datos de inseguridad ciudadana 
    ```bash
    docker run -p 5000:5000 streetweb
    ```
+
+### Opción 2: Con persistencia de datos (recomendado para desarrollo)
+Para asegurar que los datos de las cuentas y otros contenidos persistan entre reinicios:
+
+#### Usando Docker Compose (recomendado)
+1. Asegúrate de tener [docker-compose](https://docs.docker.com/compose/install/) instalado
+2. Ejecutar:
+   ```bash
+   docker-compose up --build
+   ```
+   La aplicación estará disponible en http://localhost:5000
+
+#### Usando montaje de volumen manual
+```bash
+docker build -t streetweb .
+docker run -p 5000:5000 \
+  -v "$(pwd)/Arquitectura/instance:/app/instance" \
+  streetweb
+```
+
+### Opción 3: Usando PostgreSQL localmente (más cercano a producción)
+1. Descomentar la sección de la base de datos en `docker-compose.yml`
+2. Actualizar las variables de entorno en el servicio web para usar PostgreSQL
+3. Ejecutar `docker-compose up --build`
+
+## Variables de Entorno
+
+Para configurar la base de datos:
+
+- `DATABASE_URL`: URL de conexión a la base de datos
+  - Para SQLite (desarrollo): `sqlite:///streetweb.db` (predeterminado)
+  - Para PostgreSQL: `postgresql://usuario:contraseña@host:puerto/base_de_datos`
+
+En producción (Render), se proporciona automáticamente la variable `DATABASE_URL` para PostgreSQL.
 
 ## Enlaces de Acceso
 
