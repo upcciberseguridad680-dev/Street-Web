@@ -9,15 +9,15 @@ map_bp = Blueprint('map', __name__)
 @map_bp.route('/heatmap')
 @login_required
 def heatmap():
-    incident_types = db.session.query(Incident.incident_type.distinct()).all()
+    incident_types = db.session.query(Incident.incident_type.distinct()).filter(Incident.status == 'approved').all()
     incident_types = [t[0] for t in incident_types]
-    districts = db.session.query(Incident.district.distinct()).all()
+    districts = db.session.query(Incident.district.distinct()).filter(Incident.status == 'approved').all()
     districts = [d[0] for d in districts]
     incident_type = request.args.get('type', '')
     district = request.args.get('district', '')
     start_date = request.args.get('start_date', '')
     end_date = request.args.get('end_date', '')
-    query = Incident.query
+    query = Incident.query.filter_by(status='approved')
     if incident_type:
         query = query.filter(Incident.incident_type == incident_type)
     if district:

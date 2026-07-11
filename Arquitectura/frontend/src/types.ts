@@ -1,16 +1,19 @@
-export type PageName = "login" | "register" | "dashboard" | "heatmap";
+export type PageName = "login" | "register" | "dashboard" | "heatmap" | "report" | "moderation";
 
 export type FlashCategory = "error" | "success" | "info" | "warning" | string;
 
 export interface UserSession {
   id: number;
   username: string;
+  isAdmin: boolean;
 }
 
 export interface FlashMessage {
   category: FlashCategory;
   message: string;
 }
+
+export type IncidentStatus = "pending" | "approved" | "rejected";
 
 export interface Incident {
   id: number;
@@ -22,6 +25,8 @@ export interface Incident {
   severity: number;
   dateReported: string | null;
   source: string;
+  status: IncidentStatus;
+  reportedBy: string | null;
 }
 
 export interface TypeCount {
@@ -62,6 +67,15 @@ export interface HeatmapData {
   filters: HeatmapFilters;
 }
 
+export interface ReportFormData {
+  districts: string[];
+  incidentTypes: string[];
+}
+
+export interface ModerationData {
+  pending: Incident[];
+}
+
 export interface AppData {
   page: PageName;
   user: UserSession | null;
@@ -69,6 +83,8 @@ export interface AppData {
   csrfToken?: string;
   dashboard?: DashboardData;
   heatmap?: HeatmapData;
+  report?: ReportFormData;
+  moderation?: ModerationData;
 }
 
 declare global {

@@ -33,7 +33,7 @@ def api_home():
 @login_required
 @get_limiter().limit("30 per minute", key_func=get_remote_address)
 def api_incidents():
-    incidents = Incident.query.all()
+    incidents = Incident.query.filter_by(status='approved').all()
     result = []
     for incident in incidents:
         result.append({
