@@ -17,7 +17,7 @@ def api_home():
 @api_bp.route('/api/incidents')
 @login_required
 def api_incidents():
-    incidents = Incident.query.all()
+    incidents = Incident.query.filter_by(status='approved').all()
     result = []
     for incident in incidents:
         result.append({

@@ -12,6 +12,8 @@ def serialize_incident(incident):
         "severity": incident.severity,
         "dateReported": incident.date_reported.isoformat() if incident.date_reported else None,
         "source": incident.source or "No especificada",
+        "status": incident.status,
+        "reportedBy": incident.reporter.username if incident.reporter else None,
     }
 
 
@@ -21,6 +23,7 @@ def render_frontend(page, **payload):
         user = {
             "id": session["user_id"],
             "username": session.get("username", "Usuario"),
+            "isAdmin": bool(session.get("is_admin")),
         }
 
     flash_messages = [

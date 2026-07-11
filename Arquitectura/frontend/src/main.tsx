@@ -7,7 +7,9 @@ import {
   CheckCircle2,
   ChevronRight,
   CircleAlert,
+  ClipboardCheck,
   Filter,
+  FilePlus2,
   LayoutDashboard,
   LogIn,
   LogOut,
@@ -29,7 +31,9 @@ import type {
   HeatmapData,
   HeatmapPoint,
   Incident,
+  ModerationData,
   PageName,
+  ReportFormData,
   UserSession
 } from "./types";
 
@@ -46,6 +50,10 @@ function App({ data }: { data: AppData }) {
       {data.page === "register" && <AuthView mode="register" csrfToken={data.csrfToken ?? ""} />}
       {data.page === "dashboard" && <DashboardView data={data.dashboard} />}
       {data.page === "heatmap" && <HeatmapView data={data.heatmap} />}
+      {data.page === "report" && <ReportView data={data.report} csrfToken={data.csrfToken ?? ""} />}
+      {data.page === "moderation" && (
+        <ModerationView data={data.moderation} csrfToken={data.csrfToken ?? ""} />
+      )}
     </AppLayout>
   );
 }
@@ -94,6 +102,14 @@ function AppLayout({
               <NavLink href="/heatmap" active={page === "heatmap"} icon={<MapPinned size={18} />}>
                 Mapa
               </NavLink>
+              <NavLink href="/reports/new" active={page === "report"} icon={<FilePlus2 size={18} />}>
+                Reportar
+              </NavLink>
+              {user.isAdmin && (
+                <NavLink href="/reports/pending" active={page === "moderation"} icon={<ClipboardCheck size={18} />}>
+                  Moderación
+                </NavLink>
+              )}
               <span className="session-chip">
                 <UsersRound size={16} />
                 {user.username}
@@ -389,6 +405,152 @@ function HeatmapView({ data }: { data?: HeatmapData }) {
   );
 }
 
+function ReportView({ data, csrfToken }: { data?: ReportFormData; csrfToken: string }) {
+  const report = data ?? { districts: [], incidentTypes: [] };
+
+  return (
+    <section className="workspace">
+      <PageHeader
+        kicker="Reportar incidente"
+        title="Registra un incidente de inseguridad"
+        description="Tu reporte quedará pendiente de revisión por un administrador antes de mostrarse en el mapa y el panel."
+      />
+
+      <form className="surface report-form" method="POST" action="/reports/new">
+        <input type="hidden" name="csrf_token" value={csrfToken} />
+
+        <label className="field">
+          <span>Distrito</span>
+          <select name="district" defaultValue="" required>
+            <option value="" disabled>
+              Selecciona un distrito
+            </option>
+            {report.districts.map((district) => (
+              <option value={district} key={district}>
+                {district}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="field">
+          <span>Tipo de incidente</span>
+          <select name="incident_type" defaultValue="" required>
+            <option value="" disabled>
+              Selecciona un tipo
+            </option>
+            {report.incidentTypes.map((type) => (
+              <option value={type} key={type}>
+                {type}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="field">
+          <span>Severidad</span>
+          <select name="severity" defaultValue="" required>
+            <option value="" disabled>
+              Selecciona un nivel
+            </option>
+            <option value="1">1 - Baja</option>
+            <option value="2">2 - Leve</option>
+            <option value="3">3 - Media</option>
+            <option value="4">4 - Alta</option>
+            <option value="5">5 - Crítica</option>
+          </select>
+        </label>
+
+        <label className="field">
+          <span>Descripción</span>
+          <textarea name="description" rows={4} required placeholder="Describe brevemente lo ocurrido: lugar, hora, detalles relevantes." />
+        </label>
+
+        <button className="primary-button" type="submit">
+          <FilePlus2 size={18} />
+          Enviar reporte
+        </button>
+      </form>
+    </section>
+  );
+}
+
+function ModerationView({ data, csrfToken }: { data?: ModerationData; csrfToken: string }) {
+  const moderation = data ?? { pending: [] };
+
+  return (
+    <section className="workspace">
+      <PageHeader
+        kicker="Moderación"
+        title="Reportes pendientes de revisión"
+        description="Aprueba los reportes que deban mostrarse en el dashboard y el mapa de calor, o recházalos si no corresponden."
+      />
+
+      <section className="surface data-panel">
+        <PanelHeader
+          icon={<ClipboardCheck size={20} />}
+          title="Pendientes"
+          meta={`${moderation.pending.length} reportes`}
+        />
+
+        {moderation.pending.length === 0 ? (
+          <div className="empty-state">No hay reportes pendientes.</div>
+        ) : (
+          <div className="table-wrap">
+            <table className="incident-table">
+              <thead>
+                <tr>
+                  <th>Distrito</th>
+                  <th>Tipo</th>
+                  <th>Descripción</th>
+                  <th>Severidad</th>
+                  <th>Reportado por</th>
+                  <th>Fecha</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {moderation.pending.map((incident) => (
+                  <tr key={incident.id}>
+                    <td className="strong-cell">{incident.district}</td>
+                    <td>
+                      <span className={`type-badge type-${slugify(incident.incidentType)}`}>{incident.incidentType}</span>
+                    </td>
+                    <td>{truncate(incident.description, 72)}</td>
+                    <td>
+                      <Severity value={incident.severity} />
+                    </td>
+                    <td>{incident.reportedBy ?? "—"}</td>
+                    <td>{formatDateTime(incident.dateReported)}</td>
+                    <td>
+                      <div className="moderation-actions">
+                        <form method="POST" action={`/reports/${incident.id}/approve`}>
+                          <input type="hidden" name="csrf_token" value={csrfToken} />
+                          <button className="primary-button inline" type="submit">
+                            <CheckCircle2 size={16} />
+                            Aprobar
+                          </button>
+                        </form>
+                        <form method="POST" action={`/reports/${incident.id}/reject`}>
+                          <input type="hidden" name="csrf_token" value={csrfToken} />
+                          <button className="secondary-button" type="submit">
+                            <X size={16} />
+                            Rechazar
+                          </button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </section>
+  );
+}
+
 function PageHeader({
   kicker,
   title,
@@ -546,9 +708,10 @@ function LeafletHeatmap({ points }: { points: HeatmapPoint[] }) {
     if (points.length > 0) {
       const heatPoints = points.map((point) => [point.lat, point.lng, point.intensity]);
       L.heatLayer(heatPoints, {
-        radius: 28,
-        blur: 18,
+        radius: 32,
+        blur: 22,
         maxZoom: 17,
+        minOpacity: 0.35,
         gradient: {
           0.2: "#2563eb",
           0.45: "#0f766e",

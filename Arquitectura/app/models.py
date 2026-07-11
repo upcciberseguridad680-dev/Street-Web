@@ -8,6 +8,7 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(120), nullable=False)
+    is_admin = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def set_password(self, password):
@@ -28,3 +29,7 @@ class Incident(db.Model):
     severity = db.Column(db.Integer, default=1)  # 1-5 scale
     date_reported = db.Column(db.DateTime, default=datetime.utcnow)
     source = db.Column(db.String(100))
+    status = db.Column(db.String(20), default='approved', nullable=False)  # pending | approved | rejected
+    reported_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+
+    reporter = db.relationship('User', backref='reported_incidents')

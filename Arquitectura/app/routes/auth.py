@@ -14,6 +14,7 @@ def login():
         if user and user.check_password(password):
             session['user_id'] = user.id
             session['username'] = user.username
+            session['is_admin'] = user.is_admin
             flash('Inicio de sesión correcto.', 'success')
             return redirect(url_for('main.dashboard'))
         else:
