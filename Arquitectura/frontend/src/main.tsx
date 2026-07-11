@@ -1283,10 +1283,10 @@ function LeafletHeatmap({ points, focusedPoint }: { points: HeatmapPoint[]; focu
         maxZoom: 17,
         minOpacity: 0.35,
         gradient: {
-          0.2: "#0ca30c",
-          0.45: "#c98500",
-          0.65: "#d9622f",
-          0.85: "#d03b3b"
+          0.2: cssVar("--status-good", "#0ca30c"),
+          0.45: cssVar("--status-warning", "#c98500"),
+          0.65: cssVar("--status-serious", "#d9622f"),
+          0.85: cssVar("--status-critical", "#d03b3b")
         }
       }).addTo(map);
 
@@ -1399,20 +1399,25 @@ function slugify(value: string) {
     .replace(/(^-|-$)/g, "");
 }
 
+function cssVar(name: string, fallback: string) {
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || fallback;
+}
+
 function severityColor(severity: number) {
   if (severity >= 5) {
-    return "#d03b3b";
+    return cssVar("--status-critical", "#d03b3b");
   }
 
   if (severity >= 4) {
-    return "#d9622f";
+    return cssVar("--status-serious", "#d9622f");
   }
 
   if (severity >= 3) {
-    return "#c98500";
+    return cssVar("--status-warning", "#c98500");
   }
 
-  return "#0ca30c";
+  return cssVar("--status-good", "#0ca30c");
 }
 
 function formatDateTime(value: string | null) {

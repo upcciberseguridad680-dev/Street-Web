@@ -62,18 +62,21 @@ def create_app():
     app.register_blueprint(api_bp)
     app.register_blueprint(reports_bp)
 
-    @app.before_request
-    def set_csp_nonce():
-        # Nonce por request para el unico script inline que necesita
-        # ejecutarse de verdad (evitar el flash de tema claro/oscuro antes
-        # de la hidratacion de React). El resto de datos de la app viajan
-        # en un <script type="application/json"> inerte, que no requiere
-        # nonce porque no lo alcanza script-src.
-        g.csp_nonce = secrets.token_urlsafe(16)
+    def get_csp_nonce():
+        # Se genera perezosamente (no en before_request) porque CSRFProtect
+        # y el rate limiter registran sus propios before_request ANTES que
+        # este codigo, y pueden abortar la request (CSRF invalido, limite
+        # excedido) sin llegar a correr un before_request nuestro. Si
+        # dependieramos de un before_request y luego lo leyeramos aqui,
+        # el 429/400 que ya generaron ellos se convertiria en un 500 al
+        # intentar leer un g.csp_nonce que nunca se seteo.
+        if not hasattr(g, 'csp_nonce'):
+            g.csp_nonce = secrets.token_urlsafe(16)
+        return g.csp_nonce
 
     @app.context_processor
     def inject_template_helpers():
-        return {'now': lambda: datetime.now(timezone.utc), 'csp_nonce': g.csp_nonce}
+        return {'now': lambda: datetime.now(timezone.utc), 'csp_nonce': get_csp_nonce()}
 
     # Initialize database and add sample data
     with app.app_context():
@@ -110,7 +113,7 @@ def create_app():
         response.headers['X-Frame-Options'] = 'DENY'
         response.headers['Content-Security-Policy'] = (
             "default-src 'self'; "
-            f"script-src 'self' 'nonce-{g.csp_nonce}' https://unpkg.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
+            f"script-src 'self' 'nonce-{get_csp_nonce()}' https://unpkg.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
             # 'unsafe-inline' aqui (no en script-src) es una concesion deliberada:
             # la UI usa estilos inline dinamicos (colores de severidad/graficos)
             # en decenas de puntos: exigir nonce en cada uno no es viable y el
@@ -120,10 +123,12 @@ def create_app():
             "img-src 'self' data: https://*.basemaps.cartocdn.com"
         )
         response.headers['Permissions-Policy'] = 'geolocation=(), camera=(), microphone=()'
-        # Sin Cross-Origin-Embedder-Policy: la app no usa SharedArrayBuffer ni
-        # ninguna funcion que requiera aislamiento cross-origin, y require-corp
-        # bloqueaba las teselas del mapa base (CARTO) y otros recursos externos
-        # que no envian Cross-Origin-Resource-Policy, sin ningun beneficio real.
+        # credentialless en vez de require-corp: require-corp bloqueaba las
+        # teselas del mapa base (CARTO) y otros recursos no-CORS que no envian
+        # Cross-Origin-Resource-Policy. credentialless sigue dando aislamiento
+        # cross-origin (protege contra Spectre) pero permite cargar esos
+        # recursos sin credenciales en vez de bloquearlos por completo.
+        response.headers['Cross-Origin-Embedder-Policy'] = 'credentialless'
         # HSTS - only add in production (when using HTTPS)
         if request.is_secure:
             response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains'

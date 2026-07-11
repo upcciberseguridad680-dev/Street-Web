@@ -233,6 +233,12 @@ select {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .status-pill .status-dot {
+    animation: none;
+  }
+}
+
 .theme-toggle {
   align-items: center;
   background: rgba(255, 255, 255, 0.06);
@@ -414,9 +420,6 @@ select {
 }
 
 .auth-summary {
-  background:
-    radial-gradient(720px 420px at 100% 0%, rgba(156, 139, 240, 0.35), transparent 60%),
-    linear-gradient(180deg, var(--nav-bg-2), var(--nav-bg));
   background-image:
     radial-gradient(720px 420px at 100% 0%, rgba(156, 139, 240, 0.35), transparent 60%),
     linear-gradient(180deg, var(--nav-bg-2), var(--nav-bg)),
