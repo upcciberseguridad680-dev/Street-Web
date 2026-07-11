@@ -2,6 +2,7 @@ import logging
 import os
 
 from apscheduler.schedulers.background import BackgroundScheduler
+from sqlalchemy.exc import IntegrityError
 
 from app.models import db, Incident
 from app.pnp_sync import fetch_latest_incidents
@@ -14,16 +15,23 @@ _scheduler = None
 def sync_new_incidents(app):
     """Trae las denuncias mas recientes del PNP y agrega solo las que
     todavia no existen (por external_id). Pensado para correr periodicamente
-    mientras el proceso este vivo, sin depender de un reinicio de la app."""
+    mientras el proceso este vivo, sin depender de un reinicio de la app.
+
+    Cada incidente se inserta y confirma por separado: si otro proceso ya
+    inserto el mismo external_id entre el chequeo y el commit (por ejemplo,
+    con mas de un worker corriendo este mismo job), solo se descarta ese
+    registro duplicado en vez de perder el resto del lote."""
     with app.app_context():
         added = 0
         for data in fetch_latest_incidents():
             if Incident.query.filter_by(external_id=data['external_id']).first():
                 continue
             db.session.add(Incident(status='approved', **data))
-            added += 1
-        if added:
-            db.session.commit()
+            try:
+                db.session.commit()
+                added += 1
+            except IntegrityError:
+                db.session.rollback()
         logger.info('Sincronizacion PNP: %s incidentes nuevos', added)
         return added
 

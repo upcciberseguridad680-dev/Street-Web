@@ -66,6 +66,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Set up Trivy
+        id: trivy-fs
         uses: aquasecurity/trivy-action@v0.23.0
         with:
           scan-type: 'fs'
@@ -73,9 +74,7 @@ jobs:
           format: 'sarif'
           output: 'trivy-fs.sarif'
           severity: 'CRITICAL,HIGH'
-      - name: Fail on high/critical vulnerabilities
-        if: failure() && steps.trivy-fs.outcome == 'failure'
-        run: exit 1
+          exit-code: '1'
 
   trivy-image:
     name: Trivy Image Scan
@@ -89,6 +88,7 @@ jobs:
           cd Arquitectura
           docker build -t myapp:ci .
       - name: Run Trivy image scan
+        id: trivy-image
         uses: aquasecurity/trivy-action@v0.23.0
         with:
           image-ref: 'myapp:ci'
@@ -96,9 +96,7 @@ jobs:
           output: 'trivy-image.sarif'
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
-      - name: Fail on high/critical vulnerabilities
-        if: failure() && steps.trivy-image.outcome == 'failure'
-        run: exit 1
+          exit-code: '1'
 
   pip-audit:
     name: Pip-Audit Dependency Scan
@@ -114,21 +112,29 @@ jobs:
           cd Arquitectura
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pip-audit || echo "pip-audit install failed, continuing"
+          pip install pip-audit jq || echo "pip-audit install failed, continuing"
+          sudo apt-get update && sudo apt-get install -y jq
       - name: Run pip-audit
         id: pipaudit
         run: |
           cd Arquitectura
-          pip-audit --requirement=requirements.txt --format=json --output=pip-audit.json --exit-zero || true
+          pip-audit --requirement=requirements.txt --format=json --output=pip-audit.json || true
       - name: Check for vulnerabilities
         run: |
           cd Arquitectura
-          if [ -s pip-audit.json ]; then
-            echo "Vulnerabilities found:"
-            cat pip-audit.json
-            exit 1
+          if [ -f pip-audit.json ]; then
+            COUNT=$(jq '[.dependencies[]?.vulns[]?] | length' pip-audit.json 2>/dev/null || echo 0)
+            echo "Found $COUNT vulnerabilities"
+            if [ "$COUNT" -gt 0 ]; then
+              echo "Vulnerabilities found:"
+              jq '.dependencies[] | select(.vulns | length > 0)' pip-audit.json
+              exit 1
+            else
+              echo "No vulnerabilities found."
+            fi
           else
-            echo "No vulnerabilities found."
+            echo "pip-audit.json not found"
+            exit 1
           fi
 
   zap:

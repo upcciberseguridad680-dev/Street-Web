@@ -44,16 +44,11 @@ def login():
         ).count()
 
         if failed_attempts >= 5:
-            # Too many failed attempts - temporarily lock account
+            # Too many failed attempts - temporarily lock account.
+            # Deliberately does NOT log another LoginAttempt here: doing so
+            # would push the 15-minute window forward on every probe and let
+            # an attacker keep the lockout active indefinitely.
             flash('Demasiados intentos fallidos. Tu cuenta ha sido bloqueada temporalmente por 15 minutos.', 'error')
-            # Log the attempt even though we're not checking credentials
-            failed_attempt = LoginAttempt(
-                username=username,
-                ip_address=ip_address,
-                success=False
-            )
-            db.session.add(failed_attempt)
-            db.session.commit()
             return render_frontend('login', csrfToken=generate_csrf()), 429
 
         user = User.query.filter_by(username=username).first()

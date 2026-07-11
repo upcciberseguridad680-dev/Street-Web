@@ -40,4 +40,6 @@ ENV FLASK_RUN_HOST=0.0.0.0
 ENV FLASK_RUN_PORT=5000
 
 # Run the application
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "run:app"]
+# --timeout 90: da margen al arranque, que hace una llamada de red externa
+# (sincroniza incidentes reales del PNP) antes de aceptar requests.
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "90", "run:app"]

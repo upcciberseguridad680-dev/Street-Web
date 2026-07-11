@@ -27,17 +27,26 @@ def create_app():
     limiter.init_app(app)
 
     # Custom error handler for rate limiting
+    def _retry_after_seconds(e):
+        # e.description es siempre un string (ej. "200 per 1 hour"), no
+        # tiene atributo retry_after. El valor real de la ventana vive en
+        # e.limit.limit (un RateLimitItem de la librería `limits`).
+        try:
+            return e.limit.limit.get_expiry()
+        except AttributeError:
+            return 60
+
     @app.errorhandler(429)
     def ratelimit_handler(e):
+        retry_after = _retry_after_seconds(e)
         if request.path.startswith('/api/'):
             return jsonify({
                 "error": "Rate limit exceeded",
                 "message": "Demasiadas solicitudes. Por favor, inténtelo de nuevo más tarde.",
-                "retry_after": getattr(e.description, 'retry_after', 60)
+                "retry_after": retry_after
             }), 429
         else:
-            return render_template('errors/429.html',
-                                 retry_after=getattr(e.description, 'retry_after', 60)), 429
+            return render_template('errors/429.html', retry_after=retry_after), 429
 
     # Register Blueprints
     from app.routes.auth import auth_bp
@@ -91,8 +100,8 @@ def create_app():
         response.headers['X-Frame-Options'] = 'DENY'
         response.headers['Content-Security-Policy'] = (
             "default-src 'self'; "
-            "script-src 'self' https://unpkg.com https://cdnjs.cloudflare.com; "
-            "style-src 'self' https://unpkg.com; "
+            "script-src 'self' https://unpkg.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
+            "style-src 'self' https://unpkg.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
             "img-src 'self' data: https://*.basemaps.cartocdn.com"
         )
         response.headers['Permissions-Policy'] = 'geolocation=(), camera=(), microphone=()'
