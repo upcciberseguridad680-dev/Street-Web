@@ -120,8 +120,10 @@ PAGE_SIZE = 1000
 
 
 def _request(params):
+    # QUERY_URL es una constante https:// fija de este modulo, no input de
+    # usuario: no hay riesgo de esquemas file:// u otros no permitidos.
     url = f'{QUERY_URL}?{urllib.parse.urlencode(params)}'
-    with urllib.request.urlopen(url, timeout=REQUEST_TIMEOUT, context=_VERIFIED_CONTEXT) as resp:
+    with urllib.request.urlopen(url, timeout=REQUEST_TIMEOUT, context=_VERIFIED_CONTEXT) as resp:  # nosec B310
         return json.loads(resp.read())
 
 

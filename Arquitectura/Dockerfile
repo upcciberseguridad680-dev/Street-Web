@@ -13,12 +13,18 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install system dependencies
+# curl: usado por el healthcheck del job de ZAP en CI (docker exec app curl ...)
 RUN apt-get update && apt-get install -y \
     gcc \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy dependencies first (for Docker cache optimization)
 COPY requirements.txt .
+
+# Actualiza pip/setuptools/wheel: la imagen base trae versiones con CVEs
+# HIGH conocidas (setuptools, wheel, jaraco.context) que Trivy reporta.
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
