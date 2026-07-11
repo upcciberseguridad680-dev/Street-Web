@@ -24,7 +24,10 @@ import {
   X,
   Sun,
   Moon,
-  Lock
+  Lock,
+  PieChart,
+  List,
+  Download
 } from "lucide-react";
 import "./styles.css";
 import type {
@@ -301,6 +304,44 @@ function DashboardView({ data }: { data?: DashboardData }) {
   const topType = dashboard.typeCounts[0]?.label ?? "Sin datos";
   const latestDate = dashboard.recentIncidents[0]?.dateReported ?? null;
 
+  const exportToCSV = async () => {
+    try {
+      const response = await fetch('/api/incidents');
+      if (!response.ok) {
+        throw new Error('Error al obtener los datos');
+      }
+      const incidents = await response.json();
+      
+      // Build CSV content
+      const headers = ["ID", "Distrito", "Tipo", "Severidad", "Fecha de Reporte", "Fuente", "Descripcion"];
+      const rows = incidents.map((inc: any) => [
+        inc.id,
+        `"${inc.district.replace(/"/g, '""')}"`,
+        `"${inc.incident_type.replace(/"/g, '""')}"`,
+        inc.severity,
+        inc.date_reported || "",
+        `"${inc.source.replace(/"/g, '""')}"`,
+        `"${inc.description.replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`
+      ]);
+      
+      const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((e: any) => e.join(","))].join("\n");
+      
+      // Download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `incidentes_street_web_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      alert('No se pudo exportar a CSV en este momento.');
+    }
+  };
+
   return (
     <section className="workspace">
       <PageHeader
@@ -310,6 +351,12 @@ function DashboardView({ data }: { data?: DashboardData }) {
         actionHref="/heatmap"
         actionLabel="Ver mapa"
         actionIcon={<MapPinned size={18} />}
+        extraAction={
+          <button className="secondary-button" onClick={exportToCSV} type="button">
+            <Download size={18} />
+            Exportar CSV
+          </button>
+        }
       />
 
       <div className="stat-grid">
@@ -327,7 +374,7 @@ function DashboardView({ data }: { data?: DashboardData }) {
 
         <aside className="surface insight-panel">
           <PanelHeader icon={<BarChart3 size={20} />} title="Distribución por tipo" meta={topType} />
-          <TypeDistribution counts={dashboard.typeCounts} />
+          <InteractiveStats counts={dashboard.typeCounts} />
         </aside>
       </div>
 
@@ -781,7 +828,8 @@ function PageHeader({
   description,
   actionHref,
   actionLabel,
-  actionIcon
+  actionIcon,
+  extraAction
 }: {
   kicker: string;
   title: string;
@@ -789,6 +837,7 @@ function PageHeader({
   actionHref?: string;
   actionLabel?: string;
   actionIcon?: React.ReactNode;
+  extraAction?: React.ReactNode;
 }) {
   return (
     <div className="page-header">
@@ -797,12 +846,15 @@ function PageHeader({
         <h1>{title}</h1>
         <p>{description}</p>
       </div>
-      {actionHref && actionLabel && (
-        <a className="primary-button inline" href={actionHref}>
-          {actionIcon}
-          {actionLabel}
-        </a>
-      )}
+      <div className="header-actions" style={{ display: "flex", gap: "10px" }}>
+        {actionHref && actionLabel && (
+          <a className="primary-button inline" href={actionHref}>
+            {actionIcon}
+            {actionLabel}
+          </a>
+        )}
+        {extraAction}
+      </div>
     </div>
   );
 }
@@ -898,31 +950,271 @@ function IncidentTable({
   );
 }
 
-function TypeDistribution({ counts }: { counts: { label: string; value: number }[] }) {
+interface InteractiveStatsProps {
+  counts: { label: string; value: number }[];
+}
+
+const PALETTE = [
+  "#2563eb", // Blue
+  "#0f766e", // Teal
+  "#d97706", // Amber
+  "#dc2626", // Red
+  "#8b5cf6", // Purple
+  "#ec4899", // Pink
+  "#06b6d4", // Cyan
+  "#f97316", // Orange
+  "#10b981", // Emerald
+];
+
+function InteractiveStats({ counts }: InteractiveStatsProps) {
+  const [activeTab, setActiveTab] = useState<"list" | "donut" | "bar">("donut");
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
   const total = counts.reduce((sum, item) => sum + item.value, 0);
 
   if (counts.length === 0 || total === 0) {
     return <div className="empty-state">Sin distribución disponible.</div>;
   }
 
-  return (
-    <div className="distribution-list">
-      {counts.map((item) => {
-        const percentage = Math.round((item.value / total) * 100);
+  // Radius = 50, Stroke Width = 16, SVG size = 200x200
+  // Circumference = 2 * PI * r = 2 * PI * 50 = 314.159
+  const radius = 50;
+  const circumference = 2 * Math.PI * radius; // ~314.159
+  
+  let accumulatedOffset = 0;
+  const donutSegments = counts.map((item, index) => {
+    const percentage = item.value / total;
+    const dashLength = percentage * circumference;
+    const offset = accumulatedOffset;
+    accumulatedOffset -= dashLength;
 
-        return (
-          <div className="distribution-item" key={item.label}>
-            <div>
-              <strong>{item.label}</strong>
-              <span>{item.value} casos</span>
+    const color = PALETTE[index % PALETTE.length];
+
+    return {
+      ...item,
+      percentage: Math.round(percentage * 100),
+      dashLength,
+      offset,
+      color,
+      index,
+    };
+  });
+
+  const selectedSegment = hoveredIndex !== null ? donutSegments[hoveredIndex] : null;
+
+  // Bar Chart calculations
+  const maxVal = Math.max(...counts.map((c) => c.value), 1);
+  const barChartHeight = 130;
+  const barChartWidth = 280;
+  const paddingLeft = 20;
+  const paddingRight = 20;
+  const paddingTop = 20;
+  const paddingBottom = 20;
+
+  const barCount = counts.length;
+  const chartInnerWidth = barChartWidth - paddingLeft - paddingRight;
+  const chartInnerHeight = barChartHeight - paddingTop - paddingBottom;
+  const barGap = 12;
+  const barWidth = Math.max((chartInnerWidth - barGap * (barCount - 1)) / barCount, 12);
+
+  return (
+    <div className="interactive-stats-widget">
+      <div className="chart-tabs">
+        <button
+          className={`chart-tab ${activeTab === "list" ? "is-active" : ""}`}
+          onClick={() => setActiveTab("list")}
+          type="button"
+        >
+          <List size={16} />
+          Lista
+        </button>
+        <button
+          className={`chart-tab ${activeTab === "donut" ? "is-active" : ""}`}
+          onClick={() => setActiveTab("donut")}
+          type="button"
+        >
+          <PieChart size={16} />
+          Dona
+        </button>
+        <button
+          className={`chart-tab ${activeTab === "bar" ? "is-active" : ""}`}
+          onClick={() => setActiveTab("bar")}
+          type="button"
+        >
+          <BarChart3 size={16} />
+          Barras
+        </button>
+      </div>
+
+      {activeTab === "list" && (
+        <div className="distribution-list">
+          {counts.map((item, index) => {
+            const percentage = Math.round((item.value / total) * 100);
+            const color = PALETTE[index % PALETTE.length];
+
+            return (
+              <div className="distribution-item" key={item.label}>
+                <div>
+                  <strong style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: color, display: "inline-block" }} />
+                    {item.label}
+                  </strong>
+                  <span>{item.value} casos</span>
+                </div>
+                <div className="bar-track" aria-label={`${item.label}: ${percentage}%`}>
+                  <span style={{ width: `${percentage}%`, background: color }} />
+                </div>
+                <b>{percentage}%</b>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {activeTab === "donut" && (
+        <div className="donut-chart-container">
+          <div style={{ position: "relative", width: "200px", height: "200px" }}>
+            <svg className="donut-chart-svg" viewBox="0 0 200 200">
+              {donutSegments.map((segment) => (
+                <circle
+                  key={segment.label}
+                  cx="100"
+                  cy="100"
+                  r={radius}
+                  className={`donut-segment ${hoveredIndex === segment.index ? "is-active" : ""}`}
+                  stroke={segment.color}
+                  strokeDasharray={`${segment.dashLength} ${circumference - segment.dashLength}`}
+                  strokeDashoffset={segment.offset}
+                  onMouseEnter={() => setHoveredIndex(segment.index)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                />
+              ))}
+            </svg>
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                pointerEvents: "none",
+                textAlign: "center",
+                padding: "20px",
+              }}
+            >
+              <span className="section-kicker" style={{ fontSize: "0.68rem", marginBottom: "2px" }}>
+                {selectedSegment ? truncate(selectedSegment.label, 12) : "Total"}
+              </span>
+              <strong style={{ fontSize: "1.4rem", color: "var(--ink)", lineHeight: 1.1 }}>
+                {selectedSegment ? `${selectedSegment.value}` : `${total}`}
+              </strong>
+              <span style={{ fontSize: "0.78rem", fontWeight: 700, color: selectedSegment ? selectedSegment.color : "var(--muted)", marginTop: "2px" }}>
+                {selectedSegment ? `${selectedSegment.percentage}%` : "Casos"}
+              </span>
             </div>
-            <div className="bar-track" aria-label={`${item.label}: ${percentage}%`}>
-              <span style={{ width: `${percentage}%` }} />
-            </div>
-            <b>{percentage}%</b>
           </div>
-        );
-      })}
+
+          <div className="donut-legend">
+            {donutSegments.map((segment) => (
+              <div
+                key={segment.label}
+                className={`donut-legend-item ${hoveredIndex === segment.index ? "is-active" : ""}`}
+                onMouseEnter={() => setHoveredIndex(segment.index)}
+                onMouseLeave={() => setHoveredIndex(null)}
+              >
+                <span className="donut-legend-dot" style={{ background: segment.color }} />
+                <span style={{ textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", fontWeight: 600, color: hoveredIndex === segment.index ? "var(--ink)" : "var(--muted)" }}>
+                  {segment.label}
+                </span>
+                <span style={{ marginLeft: "auto", fontWeight: 700 }}>{segment.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "bar" && (
+        <div className="bar-chart-container">
+          <svg className="bar-chart-svg" viewBox={`0 0 ${barChartWidth} ${barChartHeight}`}>
+            {/* Grid Lines */}
+            {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+              const y = paddingTop + chartInnerHeight * (1 - ratio);
+              return (
+                <line
+                  key={ratio}
+                  x1={paddingLeft}
+                  y1={y}
+                  x2={barChartWidth - paddingRight}
+                  y2={y}
+                  stroke="var(--line)"
+                  strokeWidth="1"
+                  strokeDasharray="2 2"
+                  opacity="0.6"
+                />
+              );
+            })}
+
+            {counts.map((item, index) => {
+              const barHeight = (item.value / maxVal) * chartInnerHeight;
+              const x = paddingLeft + index * (barWidth + barGap);
+              const y = paddingTop + chartInnerHeight - barHeight;
+              const color = PALETTE[index % PALETTE.length];
+
+              return (
+                <g key={item.label}>
+                  <rect
+                    x={x}
+                    y={y}
+                    width={barWidth}
+                    height={barHeight}
+                    rx="3"
+                    className={`bar-chart-bar ${hoveredIndex === index ? "is-active" : ""}`}
+                    fill={color}
+                    onMouseEnter={() => setHoveredIndex(index)}
+                    onMouseLeave={() => setHoveredIndex(null)}
+                  />
+                  {/* Value on Top */}
+                  <text
+                    x={x + barWidth / 2}
+                    y={y - 5}
+                    className="bar-chart-value"
+                    opacity={hoveredIndex === index || barHeight > 20 ? 1 : 0}
+                    style={{ transition: "opacity 0.2s" }}
+                  >
+                    {item.value}
+                  </text>
+                  {/* Axis Label */}
+                  <text
+                    x={x + barWidth / 2}
+                    y={barChartHeight - 4}
+                    className="bar-chart-label"
+                    style={{
+                      fontSize: "7px",
+                      fill: hoveredIndex === index ? "var(--ink)" : "var(--muted)",
+                      fontWeight: hoveredIndex === index ? 700 : 500
+                    }}
+                  >
+                    {truncate(item.label, 8)}
+                  </text>
+                </g>
+              );
+            })}
+
+            {/* Bottom Axis Line */}
+            <line
+              x1={paddingLeft}
+              y1={paddingTop + chartInnerHeight}
+              x2={barChartWidth - paddingRight}
+              y2={paddingTop + chartInnerHeight}
+              className="bar-chart-axis"
+            />
+          </svg>
+        </div>
+      )}
     </div>
   );
 }
