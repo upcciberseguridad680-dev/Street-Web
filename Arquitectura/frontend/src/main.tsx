@@ -26,7 +26,8 @@ import {
   Moon,
   Lock,
   PieChart,
-  List
+  List,
+  Download
 } from "lucide-react";
 import "./styles.css";
 import type {
@@ -297,6 +298,44 @@ function DashboardView({ data }: { data?: DashboardData }) {
   const topType = dashboard.typeCounts[0]?.label ?? "Sin datos";
   const latestDate = dashboard.recentIncidents[0]?.dateReported ?? null;
 
+  const exportToCSV = async () => {
+    try {
+      const response = await fetch('/api/incidents');
+      if (!response.ok) {
+        throw new Error('Error al obtener los datos');
+      }
+      const incidents = await response.json();
+      
+      // Build CSV content
+      const headers = ["ID", "Distrito", "Tipo", "Severidad", "Fecha de Reporte", "Fuente", "Descripcion"];
+      const rows = incidents.map((inc: any) => [
+        inc.id,
+        `"${inc.district.replace(/"/g, '""')}"`,
+        `"${inc.incident_type.replace(/"/g, '""')}"`,
+        inc.severity,
+        inc.date_reported || "",
+        `"${inc.source.replace(/"/g, '""')}"`,
+        `"${inc.description.replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`
+      ]);
+      
+      const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((e: any) => e.join(","))].join("\n");
+      
+      // Download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `incidentes_street_web_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      alert('No se pudo exportar a CSV en este momento.');
+    }
+  };
+
   return (
     <section className="workspace">
       <PageHeader
@@ -306,6 +345,12 @@ function DashboardView({ data }: { data?: DashboardData }) {
         actionHref="/heatmap"
         actionLabel="Ver mapa"
         actionIcon={<MapPinned size={18} />}
+        extraAction={
+          <button className="secondary-button" onClick={exportToCSV} type="button">
+            <Download size={18} />
+            Exportar CSV
+          </button>
+        }
       />
 
       <div className="stat-grid">
@@ -777,7 +822,8 @@ function PageHeader({
   description,
   actionHref,
   actionLabel,
-  actionIcon
+  actionIcon,
+  extraAction
 }: {
   kicker: string;
   title: string;
@@ -785,6 +831,7 @@ function PageHeader({
   actionHref?: string;
   actionLabel?: string;
   actionIcon?: React.ReactNode;
+  extraAction?: React.ReactNode;
 }) {
   return (
     <div className="page-header">
@@ -793,12 +840,15 @@ function PageHeader({
         <h1>{title}</h1>
         <p>{description}</p>
       </div>
-      {actionHref && actionLabel && (
-        <a className="primary-button inline" href={actionHref}>
-          {actionIcon}
-          {actionLabel}
-        </a>
-      )}
+      <div className="header-actions" style={{ display: "flex", gap: "10px" }}>
+        {actionHref && actionLabel && (
+          <a className="primary-button inline" href={actionHref}>
+            {actionIcon}
+            {actionLabel}
+          </a>
+        )}
+        {extraAction}
+      </div>
     </div>
   );
 }
