@@ -23,7 +23,8 @@ import {
   UsersRound,
   X,
   Sun,
-  Moon
+  Moon,
+  Lock
 } from "lucide-react";
 import "./styles.css";
 import type {
@@ -569,6 +570,7 @@ function ReportView({ data, csrfToken }: { data?: ReportFormData; csrfToken: str
   const report = data ?? { districts: [], incidentTypes: [] };
   const [selectedDistrict, setSelectedDistrict] = useState("");
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isAnonymous, setIsAnonymous] = useState(false);
 
   const handleLocationSelect = (lat: number, lng: number) => {
     setLocation({ lat, lng });
@@ -586,6 +588,7 @@ function ReportView({ data, csrfToken }: { data?: ReportFormData; csrfToken: str
         <input type="hidden" name="csrf_token" value={csrfToken} />
         <input type="hidden" name="latitude" value={location ? location.lat : ""} />
         <input type="hidden" name="longitude" value={location ? location.lng : ""} />
+        <input type="hidden" name="is_anonymous" value={isAnonymous ? "true" : "false"} />
 
         <label className="field">
           <span>Distrito</span>
@@ -657,6 +660,22 @@ function ReportView({ data, csrfToken }: { data?: ReportFormData; csrfToken: str
           <textarea name="description" rows={4} required placeholder="Describe brevemente lo ocurrido: lugar, hora, detalles relevantes." />
         </label>
 
+        <label className="anonymous-field">
+          <input
+            type="checkbox"
+            checked={isAnonymous}
+            onChange={(e) => setIsAnonymous(e.target.checked)}
+          />
+          <span>Reportar de forma anónima</span>
+        </label>
+
+        {isAnonymous && (
+          <div className="anonymous-warning">
+            <Lock size={16} />
+            <span>Tu usuario no será registrado en este reporte para garantizar tu anonimato.</span>
+          </div>
+        )}
+
         <button className="primary-button" type="submit">
           <FilePlus2 size={18} />
           Enviar reporte
@@ -711,7 +730,15 @@ function ModerationView({ data, csrfToken }: { data?: ModerationData; csrfToken:
                     <td>
                       <Severity value={incident.severity} />
                     </td>
-                    <td>{incident.reportedBy ?? "—"}</td>
+                    <td>
+                      {incident.reportedBy ? (
+                        incident.reportedBy
+                      ) : (
+                        <span className="anonymous-badge">
+                          <Lock size={12} /> Anónimo
+                        </span>
+                      )}
+                    </td>
                     <td>{formatDateTime(incident.dateReported)}</td>
                     <td>
                       <div className="moderation-actions">

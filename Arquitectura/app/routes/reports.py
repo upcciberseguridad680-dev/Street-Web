@@ -18,6 +18,7 @@ def new_report():
         severity = request.form.get('severity', '')
         latitude_val = request.form.get('latitude', '')
         longitude_val = request.form.get('longitude', '')
+        is_anonymous = request.form.get('is_anonymous', '') == 'true'
 
         errors = []
         if district not in DISTRICT_COORDINATES:
@@ -46,9 +47,9 @@ def new_report():
                 latitude=latitude,
                 longitude=longitude,
                 severity=int(severity),
-                source=f"Reporte de {session.get('username', 'usuario')}",
+                source="Reporte Anónimo" if is_anonymous else f"Reporte de {session.get('username', 'usuario')}",
                 status='pending',
-                reported_by=session['user_id'],
+                reported_by=None if is_anonymous else session['user_id'],
             )
             db.session.add(incident)
             db.session.commit()
