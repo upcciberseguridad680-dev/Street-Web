@@ -313,7 +313,7 @@ select {
   font-size: 0.82rem;
 }
 
-.nav-toggle {
+.icon-button.nav-toggle {
   display: none;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -977,6 +977,7 @@ select {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   height: 560px;
+  isolation: isolate;
   overflow: hidden;
   width: 100%;
 }
@@ -1465,7 +1466,7 @@ select {
     display: none;
   }
 
-  .nav-toggle {
+  .icon-button.nav-toggle {
     display: inline-flex;
   }
 
