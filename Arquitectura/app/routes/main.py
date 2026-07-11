@@ -43,3 +43,64 @@ def dashboard():
             ],
         },
     )
+
+@main_bp.route('/advisor')
+@login_required
+def advisor():
+    from app.districts import DISTRICTS, INCIDENT_TYPES
+
+    # Query all approved incidents
+    incidents = Incident.query.filter_by(status='approved').all()
+
+    # Calculate stats per district
+    stats = {}
+
+    # Group incidents by district
+    by_district = {d: [] for d in DISTRICTS}
+    for inc in incidents:
+        if inc.district in by_district:
+            by_district[inc.district].append(inc)
+
+    # Find max incidents in any district to normalize risk
+    max_incidents = max(len(incs) for incs in by_district.values()) if by_district else 0
+    if max_incidents == 0:
+        max_incidents = 1
+
+    for d in DISTRICTS:
+        incs = by_district[d]
+        total = len(incs)
+        if total > 0:
+            avg_severity = sum(i.severity for i in incs) / total
+            types = [i.incident_type for i in incs]
+            top_type = max(set(types), key=types.count)
+        else:
+            avg_severity = 0.0
+            top_type = "Ninguno"
+
+        # Risk factor calculation: 60% frequency weight, 40% severity weight
+        freq_score = total / max_incidents
+        sev_score = avg_severity / 5.0
+
+        if total == 0:
+            risk_score = 0.0
+        else:
+            risk_score = (freq_score * 0.6) + (sev_score * 0.4)
+
+        safety_index = int(round(max(0.0, min(1.0, 1.0 - risk_score)) * 100))
+
+        stats[d] = {
+            'total': total,
+            'avgSeverity': round(avg_severity, 1),
+            'topType': top_type,
+            'safetyIndex': safety_index
+        }
+
+    return render_frontend(
+        'advisor',
+        advisor={
+            'districts': DISTRICTS,
+            'incidentTypes': INCIDENT_TYPES,
+            'stats': stats
+        }
+    )
+

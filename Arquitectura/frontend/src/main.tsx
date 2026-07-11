@@ -37,7 +37,9 @@ import type {
   ModerationData,
   PageName,
   ReportFormData,
-  UserSession
+  UserSession,
+  AdvisorData,
+  AdvisorDistrictStats
 } from "./types";
 
 const appData = window.__STREET_WEB__ ?? {
@@ -53,6 +55,7 @@ function App({ data }: { data: AppData }) {
       {data.page === "register" && <AuthView mode="register" csrfToken={data.csrfToken ?? ""} />}
       {data.page === "dashboard" && <DashboardView data={data.dashboard} />}
       {data.page === "heatmap" && <HeatmapView data={data.heatmap} />}
+      {data.page === "advisor" && <AdvisorView data={data.advisor} />}
       {data.page === "report" && <ReportView data={data.report} csrfToken={data.csrfToken ?? ""} />}
       {data.page === "moderation" && (
         <ModerationView data={data.moderation} csrfToken={data.csrfToken ?? ""} />
@@ -128,6 +131,9 @@ function AppLayout({
               </NavLink>
               <NavLink href="/heatmap" active={page === "heatmap"} icon={<MapPinned size={18} />}>
                 Mapa
+              </NavLink>
+              <NavLink href="/advisor" active={page === "advisor"} icon={<SlidersHorizontal size={18} />}>
+                Calculadora
               </NavLink>
               <NavLink href="/reports/new" active={page === "report"} icon={<FilePlus2 size={18} />}>
                 Reportar
@@ -1122,6 +1128,145 @@ function translateFlash(message: string) {
   };
 
   return messages[message] ?? message;
+}
+
+function AdvisorView({ data }: { data?: AdvisorData }) {
+  const advisor = data ?? { districts: [], incidentTypes: [], stats: {} };
+  const [selectedDistrict, setSelectedDistrict] = useState("");
+
+  const stats = selectedDistrict ? advisor.stats[selectedDistrict] : null;
+
+  const getRiskLevelSlug = (safetyIndex: number) => {
+    if (safetyIndex >= 75) return "low";
+    if (safetyIndex >= 50) return "medium";
+    if (safetyIndex >= 30) return "high";
+    return "critical";
+  };
+
+  const getRiskLevelLabel = (safetyIndex: number) => {
+    if (safetyIndex >= 75) return "Bajo";
+    if (safetyIndex >= 50) return "Moderado";
+    if (safetyIndex >= 30) return "Alto";
+    return "Crítico";
+  };
+
+  const getRecommendations = (district: string, districtStats: typeof stats) => {
+    if (!districtStats || districtStats.total === 0) {
+      return "No se registran incidentes recientes en este distrito. Se recomienda mantener las precauciones habituales de tránsito nocturno.";
+    }
+
+    let advice = "";
+    if (districtStats.safetyIndex >= 75) {
+      advice += "Este distrito cuenta con un nivel de seguridad óptimo. ";
+    } else if (districtStats.safetyIndex >= 50) {
+      advice += "Este distrito cuenta con un nivel de seguridad moderado. Se observan algunas incidencias recurrentes de forma esporádica. ";
+    } else if (districtStats.safetyIndex >= 30) {
+      advice += "Este distrito registra un índice de riesgo elevado. Es aconsejable evitar zonas oscuras y tomar rutas conocidas. ";
+    } else {
+      advice += "¡Alerta de seguridad! Este distrito registra un volumen crítico de reportes con alta severidad. Se recomienda máxima discreción al transitar. ";
+    }
+
+    switch (districtStats.topType) {
+      case "Robo":
+        advice += "La principal amenaza son los robos al paso y de autopartes. Evite usar dispositivos móviles en paraderos de transporte y zonas de poco tránsito.";
+        break;
+      case "Asalto":
+        advice += "Se reportan asaltos a mano armada frecuentemente. Transite acompañado durante la noche y prefiera avenidas con iluminación y cámaras.";
+        break;
+      case "Hurto":
+        advice += "El hurto silencioso (carteristas) es común en zonas comerciales y mercados abarrotados. Mantenga sus bolsos cerrados y al frente.";
+        break;
+      case "Riña":
+        advice += "Se registran disturbios y riñas callejeras en zonas de ocio nocturno. Evite confrontaciones y repórtelas al Serenazgo.";
+        break;
+      case "Extorsión":
+        advice += "Existen denuncias de extorsión o cobro de cupos. Reporte cualquier actividad extraña en comercios locales directamente a las autoridades.";
+        break;
+      default:
+        advice += "Manténgase atento a su entorno e informe cualquier incidente al Serenazgo o Policía Nacional.";
+    }
+
+    return advice;
+  };
+
+  return (
+    <section className="workspace">
+      <PageHeader
+        kicker="Asistente Inteligente"
+        title="Calculadora de Riesgo de Seguridad"
+        description="Analiza la seguridad de cada distrito en tiempo real basándote en la frecuencia y gravedad de los reportes aprobados."
+      />
+
+      <div className="surface advisor-selector">
+        <label className="field">
+          <span>Selecciona un Distrito para evaluar</span>
+          <select
+            value={selectedDistrict}
+            onChange={(e) => setSelectedDistrict(e.target.value)}
+          >
+            <option value="">-- Elige un distrito --</option>
+            {advisor.districts.map((d: string) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {selectedDistrict && stats && (
+        <div className="advisor-grid animate-fade-in">
+          <section className="surface risk-card">
+            <PanelHeader icon={<SlidersHorizontal size={20} />} title="Evaluación de Riesgo" />
+            <div className="risk-gauge-container">
+              <div className={`risk-gauge-radial risk-${getRiskLevelSlug(stats.safetyIndex)}`}>
+                <div className="risk-gauge-value">
+                  <strong>{stats.safetyIndex}%</strong>
+                  <span>Índice de Seguridad</span>
+                </div>
+              </div>
+              <div className="risk-status">
+                <h3>{selectedDistrict}</h3>
+                <span className={`risk-badge risk-${getRiskLevelSlug(stats.safetyIndex)}`}>
+                  Riesgo {getRiskLevelLabel(stats.safetyIndex)}
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <aside className="surface stats-profile-card">
+            <PanelHeader icon={<BarChart3 size={20} />} title="Perfil del Distrito" />
+            <div className="district-stats-grid">
+              <div className="d-stat-item">
+                <span>Incidentes Totales</span>
+                <strong>{stats.total}</strong>
+              </div>
+              <div className="d-stat-item">
+                <span>Severidad Promedio</span>
+                <div style={{ marginTop: "4px" }}>
+                  <Severity value={Math.round(stats.avgSeverity)} />
+                </div>
+                <small style={{ display: "block", marginTop: "4px" }}>({stats.avgSeverity} de 5)</small>
+              </div>
+              <div className="d-stat-item">
+                <span>Amenaza Principal</span>
+                <span className={`type-badge type-${slugify(stats.topType)}`}>
+                  {stats.topType}
+                </span>
+              </div>
+            </div>
+          </aside>
+
+          <section className="surface recommendations-card span-full">
+            <PanelHeader icon={<ShieldCheck size={20} />} title="Recomendaciones de Seguridad" />
+            <p className="recommendations-text">
+              {getRecommendations(selectedDistrict, stats)}
+            </p>
+          </section>
+        </div>
+      )}
+    </section>
+  );
 }
 
 createRoot(document.getElementById("root") as HTMLElement).render(

@@ -1,4 +1,4 @@
-export type PageName = "login" | "register" | "dashboard" | "heatmap" | "report" | "moderation";
+export type PageName = "login" | "register" | "dashboard" | "heatmap" | "report" | "moderation" | "advisor";
 
 export type FlashCategory = "error" | "success" | "info" | "warning" | string;
 
@@ -77,6 +77,19 @@ export interface ModerationData {
   pending: Incident[];
 }
 
+export interface AdvisorDistrictStats {
+  total: number;
+  avgSeverity: number;
+  topType: string;
+  safetyIndex: number;
+}
+
+export interface AdvisorData {
+  districts: string[];
+  incidentTypes: string[];
+  stats: Record<string, AdvisorDistrictStats>;
+}
+
 export interface AppData {
   page: PageName;
   user: UserSession | null;
@@ -86,6 +99,7 @@ export interface AppData {
   heatmap?: HeatmapData;
   report?: ReportFormData;
   moderation?: ModerationData;
+  advisor?: AdvisorData;
 }
 
 declare global {
