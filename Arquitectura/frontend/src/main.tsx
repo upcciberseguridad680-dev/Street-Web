@@ -18,7 +18,6 @@ import {
   Search,
   ShieldCheck,
   SlidersHorizontal,
-  Star,
   UserPlus,
   UsersRound,
   X,
@@ -45,11 +44,22 @@ import type {
   AdvisorDistrictStats
 } from "./types";
 
-const appData = window.__STREET_WEB__ ?? {
-  page: "login",
-  user: null,
-  flashMessages: []
-};
+function readAppData(): AppData {
+  // Los datos viajan en un <script type="application/json"> inerte (no un
+  // script ejecutable), asi que no lo bloquea script-src en la CSP y no
+  // necesita nonce: solo se lee como texto y se parsea.
+  const el = document.getElementById("app-data");
+  if (el?.textContent) {
+    try {
+      return JSON.parse(el.textContent) as AppData;
+    } catch {
+      // cae al valor por defecto
+    }
+  }
+  return { page: "login", user: null, flashMessages: [] };
+}
+
+const appData = readAppData();
 
 function App({ data }: { data: AppData }) {
   return (
@@ -98,15 +108,22 @@ function AppLayout({
   return (
     <div className="app-shell">
       <header className="topbar">
-        <a className="brand" href="/">
-          <span className="brand-mark">
-            <ShieldCheck size={22} strokeWidth={2.3} />
+        <div className="topbar-left">
+          <a className="brand" href="/">
+            <span className="brand-mark">
+              <ShieldCheck size={22} strokeWidth={2.3} />
+            </span>
+            <span>
+              <strong>Street Web</strong>
+              <small>Lima y Callao</small>
+            </span>
+          </a>
+
+          <span className="status-pill">
+            <span className="status-dot" />
+            Monitoreo en vivo
           </span>
-          <span>
-            <strong>Street Web</strong>
-            <small>Lima y Callao</small>
-          </span>
-        </a>
+        </div>
 
         <button
           className="icon-button nav-toggle"
@@ -954,17 +971,31 @@ interface InteractiveStatsProps {
   counts: { label: string; value: number }[];
 }
 
+// Paleta categorica validada (CVD-safe, orden fijo — ver skill de dataviz).
+// Referencia las variables de tema para que los graficos respeten claro/oscuro.
 const PALETTE = [
-  "#2563eb", // Blue
-  "#0f766e", // Teal
-  "#d97706", // Amber
-  "#dc2626", // Red
-  "#8b5cf6", // Purple
-  "#ec4899", // Pink
-  "#06b6d4", // Cyan
-  "#f97316", // Orange
-  "#10b981", // Emerald
+  "var(--cat-1)",
+  "var(--cat-2)",
+  "var(--cat-3)",
+  "var(--cat-4)",
+  "var(--cat-5)"
 ];
+
+// El color sigue al tipo de incidente (la entidad), nunca a su posicion en
+// el ranking de frecuencia: si "Robo" deja de ser el tipo mas comun no debe
+// cambiar de color en los graficos, ni desentonar con las badges de la tabla
+// (type-robo, type-hurto... en styles.css, que usan estas mismas variables).
+const TYPE_COLOR_VAR: Record<string, string> = {
+  Robo: "var(--cat-1)",
+  Hurto: "var(--cat-2)",
+  Asalto: "var(--cat-3)",
+  "Riña": "var(--cat-4)",
+  "Extorsión": "var(--cat-5)"
+};
+
+function colorForType(type: string, fallbackIndex: number) {
+  return TYPE_COLOR_VAR[type] ?? PALETTE[fallbackIndex % PALETTE.length];
+}
 
 function InteractiveStats({ counts }: InteractiveStatsProps) {
   const [activeTab, setActiveTab] = useState<"list" | "donut" | "bar">("donut");
@@ -988,7 +1019,7 @@ function InteractiveStats({ counts }: InteractiveStatsProps) {
     const offset = accumulatedOffset;
     accumulatedOffset -= dashLength;
 
-    const color = PALETTE[index % PALETTE.length];
+    const color = colorForType(item.label, index);
 
     return {
       ...item,
@@ -1050,7 +1081,7 @@ function InteractiveStats({ counts }: InteractiveStatsProps) {
         <div className="distribution-list">
           {counts.map((item, index) => {
             const percentage = Math.round((item.value / total) * 100);
-            const color = PALETTE[index % PALETTE.length];
+            const color = colorForType(item.label, index);
 
             return (
               <div className="distribution-item" key={item.label}>
@@ -1162,7 +1193,7 @@ function InteractiveStats({ counts }: InteractiveStatsProps) {
               const barHeight = (item.value / maxVal) * chartInnerHeight;
               const x = paddingLeft + index * (barWidth + barGap);
               const y = paddingTop + chartInnerHeight - barHeight;
-              const color = PALETTE[index % PALETTE.length];
+              const color = colorForType(item.label, index);
 
               return (
                 <g key={item.label}>
@@ -1252,10 +1283,10 @@ function LeafletHeatmap({ points, focusedPoint }: { points: HeatmapPoint[]; focu
         maxZoom: 17,
         minOpacity: 0.35,
         gradient: {
-          0.2: "#2563eb",
-          0.45: "#0f766e",
-          0.65: "#d97706",
-          0.85: "#dc2626"
+          0.2: "#0ca30c",
+          0.45: "#c98500",
+          0.65: "#d9622f",
+          0.85: "#d03b3b"
         }
       }).addTo(map);
 
@@ -1319,18 +1350,26 @@ function LeafletHeatmap({ points, focusedPoint }: { points: HeatmapPoint[]; focu
   return <div id={mapId} className="map-canvas" />;
 }
 
+const SEVERITY_COLORS: Record<number, string> = {
+  1: "var(--status-good)",
+  2: "var(--status-good)",
+  3: "var(--status-warning)",
+  4: "var(--status-serious)",
+  5: "var(--status-critical)"
+};
+
 function Severity({ value }: { value: number }) {
+  const color = SEVERITY_COLORS[value] ?? "var(--status-warning)";
   return (
-    <span className="severity" aria-label={`Severidad ${value} de 5`}>
+    <span className="severity-meter" aria-label={`Severidad ${value} de 5`}>
       {Array.from({ length: 5 }, (_, index) => (
-        <Star
+        <span
           key={index}
-          size={14}
-          fill={index < value ? "currentColor" : "none"}
-          strokeWidth={2}
-          className={index < value ? "is-filled" : ""}
+          className={`severity-segment ${index < value ? "is-filled" : ""}`}
+          style={index < value ? ({ "--segment-color": color } as React.CSSProperties) : undefined}
         />
       ))}
+      <span className="severity-value">{value}/5</span>
     </span>
   );
 }
@@ -1362,22 +1401,18 @@ function slugify(value: string) {
 
 function severityColor(severity: number) {
   if (severity >= 5) {
-    return "#dc2626";
+    return "#d03b3b";
   }
 
   if (severity >= 4) {
-    return "#ea580c";
+    return "#d9622f";
   }
 
   if (severity >= 3) {
-    return "#d97706";
+    return "#c98500";
   }
 
-  if (severity >= 2) {
-    return "#0f766e";
-  }
-
-  return "#2563eb";
+  return "#0ca30c";
 }
 
 function formatDateTime(value: string | null) {

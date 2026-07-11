@@ -1,5 +1,6 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, g
 import os
+import secrets
 from flask_wtf.csrf import CSRFProtect
 from app.extensions import limiter
 from app.models import db
@@ -61,9 +62,18 @@ def create_app():
     app.register_blueprint(api_bp)
     app.register_blueprint(reports_bp)
 
+    @app.before_request
+    def set_csp_nonce():
+        # Nonce por request para el unico script inline que necesita
+        # ejecutarse de verdad (evitar el flash de tema claro/oscuro antes
+        # de la hidratacion de React). El resto de datos de la app viajan
+        # en un <script type="application/json"> inerte, que no requiere
+        # nonce porque no lo alcanza script-src.
+        g.csp_nonce = secrets.token_urlsafe(16)
+
     @app.context_processor
     def inject_template_helpers():
-        return {'now': lambda: datetime.now(timezone.utc)}
+        return {'now': lambda: datetime.now(timezone.utc), 'csp_nonce': g.csp_nonce}
 
     # Initialize database and add sample data
     with app.app_context():
@@ -100,12 +110,20 @@ def create_app():
         response.headers['X-Frame-Options'] = 'DENY'
         response.headers['Content-Security-Policy'] = (
             "default-src 'self'; "
-            "script-src 'self' https://unpkg.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
-            "style-src 'self' https://unpkg.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
+            f"script-src 'self' 'nonce-{g.csp_nonce}' https://unpkg.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
+            # 'unsafe-inline' aqui (no en script-src) es una concesion deliberada:
+            # la UI usa estilos inline dinamicos (colores de severidad/graficos)
+            # en decenas de puntos: exigir nonce en cada uno no es viable y el
+            # riesgo real de permitir CSS inline es mucho menor que permitir JS
+            # inline, que sigue bloqueado sin nonce.
+            "style-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
             "img-src 'self' data: https://*.basemaps.cartocdn.com"
         )
         response.headers['Permissions-Policy'] = 'geolocation=(), camera=(), microphone=()'
-        response.headers['Cross-Origin-Embedder-Policy'] = 'require-corp'
+        # Sin Cross-Origin-Embedder-Policy: la app no usa SharedArrayBuffer ni
+        # ninguna funcion que requiera aislamiento cross-origin, y require-corp
+        # bloqueaba las teselas del mapa base (CARTO) y otros recursos externos
+        # que no envian Cross-Origin-Resource-Policy, sin ningun beneficio real.
         # HSTS - only add in production (when using HTTPS)
         if request.is_secure:
             response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains'
