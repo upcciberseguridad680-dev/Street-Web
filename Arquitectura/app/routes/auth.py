@@ -1,25 +1,11 @@
-from flask import Blueprint, request, redirect, url_for, session, flash, current_app
+from flask import Blueprint, request, redirect, url_for, session, flash
 from flask_wtf.csrf import generate_csrf
 from app.models import db, User, LoginAttempt
 from app.frontend import render_frontend
-import time
+from app.extensions import limiter
 from datetime import datetime, timedelta
 
 auth_bp = Blueprint('auth', __name__)
-
-
-def get_limiter():
-    """Get the limiter instance from the current app."""
-    limiter = current_app.extensions.get('limiter')
-    if limiter is None:
-        # Create a fallback limiter that doesn't actually limit (for safety)
-        class FallbackLimiter:
-            def limit(self, limit_string):
-                def decorator(f):
-                    return f
-                return decorator
-        return FallbackLimiter()
-    return limiter
 
 
 def get_login_key():
@@ -41,8 +27,8 @@ def get_register_key():
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
-@get_limiter().limit("10 per minute", key_func=get_login_key)
-@get_limiter().limit("5 per minute", key_func=lambda: request.remote_addr)
+@limiter.limit("10 per minute", key_func=get_login_key)
+@limiter.limit("5 per minute", key_func=lambda: request.remote_addr)
 def login():
     if request.method == 'POST':
         username = request.form['username']
@@ -109,8 +95,8 @@ def logout():
 
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
-@get_limiter().limit("10 per minute", key_func=get_register_key)
-@get_limiter().limit("5 per minute", key_func=lambda: request.remote_addr)
+@limiter.limit("10 per minute", key_func=get_register_key)
+@limiter.limit("5 per minute", key_func=lambda: request.remote_addr)
 def register():
     if request.method == 'POST':
         username = request.form['username']

@@ -1,8 +1,7 @@
 from flask import Flask, request, jsonify, render_template
 import os
 from flask_wtf.csrf import CSRFProtect
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
+from app.extensions import limiter
 from app.models import db
 from config import config
 from datetime import datetime, timezone
@@ -25,11 +24,6 @@ def create_app():
 
     db.init_app(app)
 
-    # Initialize rate limiter
-    limiter = Limiter(
-        key_func=get_remote_address,
-        default_limits=["200 per hour"]
-    )
     limiter.init_app(app)
 
     # Custom error handler for rate limiting
