@@ -176,7 +176,7 @@ jobs:
             --network zapnet \
             -v "${{ github.workspace }}/zap-out:/zap/wrk:rw" \
             -t ghcr.io/zaproxy/zaproxy:stable \
-            zap-baseline.py -t http://app:5000 -r zap-report.html -j zap-report.json -g zap-report.gfm || echo "ZAP completed with exit code $? (checking results)"
+            zap-baseline.py -t http://app:5000 -r zap-report.html -J zap-report.json -w zap-report.gfm || echo "ZAP completed with exit code $? (checking results)"
           set -e
           echo "ZAP scan completed"
       - name: Stop application container and cleanup
