@@ -66,11 +66,18 @@ def create_app():
             admin.set_password(admin_password)
             db.session.add(admin)
         if Incident.query.count() == 0:
+            from app.pnp_sync import fetch_recent_incidents
             from app.sample_data import generate_sample_incidents
-            for inc_data in generate_sample_incidents():
+            incidents_data = fetch_recent_incidents()
+            if not incidents_data:
+                incidents_data = generate_sample_incidents()
+            for inc_data in incidents_data:
                 incident = Incident(status='approved', **inc_data)
                 db.session.add(incident)
             db.session.commit()
+
+    from app.scheduler import start_scheduler
+    start_scheduler(app)
 
     # Health check
     @app.route('/health')

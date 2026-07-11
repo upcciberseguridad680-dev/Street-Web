@@ -31,6 +31,7 @@ class Incident(db.Model):
     source = db.Column(db.String(100))
     status = db.Column(db.String(20), default='approved', nullable=False)  # pending | approved | rejected
     reported_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    external_id = db.Column(db.String(50), unique=True, nullable=True)  # id de la fuente externa (ej. PNP), para no duplicar en cada sync
 
     reporter = db.relationship('User', backref='reported_incidents')
 
