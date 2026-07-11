@@ -38,6 +38,7 @@ def heatmap():
     heatmap_data = []
     for incident in incidents:
         heatmap_data.append({
+            'id': incident.id,
             'lat': incident.latitude,
             'lng': incident.longitude,
             'intensity': incident.severity,

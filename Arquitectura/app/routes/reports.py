@@ -16,6 +16,8 @@ def new_report():
         incident_type = request.form.get('incident_type', '')
         description = request.form.get('description', '').strip()
         severity = request.form.get('severity', '')
+        latitude_val = request.form.get('latitude', '')
+        longitude_val = request.form.get('longitude', '')
 
         errors = []
         if district not in DISTRICT_COORDINATES:
@@ -31,7 +33,12 @@ def new_report():
             for error in errors:
                 flash(error, 'error')
         else:
-            latitude, longitude = DISTRICT_COORDINATES[district]
+            try:
+                latitude = float(latitude_val) if latitude_val else DISTRICT_COORDINATES[district][0]
+                longitude = float(longitude_val) if longitude_val else DISTRICT_COORDINATES[district][1]
+            except ValueError:
+                latitude, longitude = DISTRICT_COORDINATES[district]
+
             incident = Incident(
                 district=district,
                 incident_type=incident_type,

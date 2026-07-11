@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import {
   AlertTriangle,
@@ -21,7 +21,9 @@ import {
   Star,
   UserPlus,
   UsersRound,
-  X
+  X,
+  Sun,
+  Moon
 } from "lucide-react";
 import "./styles.css";
 import type {
@@ -70,6 +72,21 @@ function AppLayout({
   flashMessages: FlashMessage[];
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isDark, setIsDark] = useState(() => {
+    return localStorage.getItem("theme") === "dark";
+  });
+
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add("dark-theme");
+      document.body.classList.add("dark-theme");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark-theme");
+      document.body.classList.remove("dark-theme");
+      localStorage.setItem("theme", "light");
+    }
+  }, [isDark]);
 
   return (
     <div className="app-shell">
@@ -94,6 +111,15 @@ function AppLayout({
         </button>
 
         <nav className={`nav-links ${menuOpen ? "is-open" : ""}`}>
+          <button
+            className="theme-toggle"
+            type="button"
+            onClick={() => setIsDark((prev) => !prev)}
+            title={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+          >
+            {isDark ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+
           {user ? (
             <>
               <NavLink href="/dashboard" active={page === "dashboard"} icon={<LayoutDashboard size={18} />}>
@@ -326,6 +352,8 @@ function HeatmapView({ data }: { data?: HeatmapData }) {
     }
   };
 
+  const [focusedPoint, setFocusedPoint] = useState<HeatmapPoint | null>(null);
+
   return (
     <section className="workspace">
       <PageHeader
@@ -394,19 +422,157 @@ function HeatmapView({ data }: { data?: HeatmapData }) {
 
       <section className="surface map-panel">
         <PanelHeader icon={<MapPinned size={20} />} title="Mapa de inseguridad" meta={`${heatmap.heatmapPoints.length} puntos`} />
-        <LeafletHeatmap points={heatmap.heatmapPoints} />
+        <LeafletHeatmap points={heatmap.heatmapPoints} focusedPoint={focusedPoint} />
       </section>
 
       <section className="surface data-panel">
         <PanelHeader icon={<Search size={20} />} title="Detalle de incidentes" meta={`${heatmap.incidents.length} registros`} />
-        <IncidentTable incidents={heatmap.incidents} />
+        <IncidentTable
+          incidents={heatmap.incidents}
+          onRowClick={(incident) => {
+            const point = heatmap.heatmapPoints.find((p) => p.id === incident.id);
+            if (point) {
+              setFocusedPoint(point);
+              document.querySelector(".map-panel")?.scrollIntoView({ behavior: "smooth" });
+            }
+          }}
+          focusedIncidentId={focusedPoint?.id}
+        />
       </section>
     </section>
   );
 }
 
+const DISTRICT_COORDINATES: Record<string, [number, number]> = {
+  'Ancón': [-11.7725, -77.1758],
+  'Ate': [-12.0261, -76.9192],
+  'Barranco': [-12.1499, -77.0201],
+  'Breña': [-12.0578, -77.0517],
+  'Carabayllo': [-11.8642, -77.0272],
+  'Chaclacayo': [-11.9781, -76.7758],
+  'Chorrillos': [-12.1747, -77.0181],
+  'Cieneguilla': [-12.0864, -76.8067],
+  'Comas': [-11.9349, -77.0522],
+  'El Agustino': [-12.0378, -77.0022],
+  'Independencia': [-11.9889, -77.0500],
+  'Jesús María': [-12.0764, -77.0489],
+  'La Molina': [-12.0868, -76.9420],
+  'La Victoria': [-12.0645, -77.0175],
+  'Lima Cercado': [-12.0464, -77.0428],
+  'Lince': [-12.0868, -77.0343],
+  'Los Olivos': [-11.9689, -77.0700],
+  'Lurigancho (Chosica)': [-11.9333, -76.7000],
+  'Lurín': [-12.2725, -76.8672],
+  'Magdalena del Mar': [-12.0925, -77.0742],
+  'Miraflores': [-12.1216, -77.0282],
+  'Pachacámac': [-12.2333, -76.8333],
+  'Pucusana': [-12.4833, -76.7972],
+  'Pueblo Libre': [-12.0733, -77.0631],
+  'Puente Piedra': [-11.8672, -77.0761],
+  'Punta Hermosa': [-12.3333, -76.8167],
+  'Punta Negra': [-12.3667, -76.8000],
+  'Rímac': [-12.0294, -77.0347],
+  'San Bartolo': [-12.3667, -76.7833],
+  'San Borja': [-12.1083, -77.0011],
+  'San Isidro': [-12.0975, -77.0367],
+  'San Juan de Lurigancho': [-11.9722, -77.0000],
+  'San Juan de Miraflores': [-12.1567, -76.9711],
+  'San Luis': [-12.0797, -77.0083],
+  'San Martín de Porres': [-12.0022, -77.0836],
+  'San Miguel': [-12.0775, -77.0925],
+  'Santa Anita': [-12.0447, -76.9683],
+  'Santa María del Mar': [-12.3833, -76.8000],
+  'Santa Rosa': [-11.7961, -77.1719],
+  'Santiago de Surco': [-12.1350, -76.9908],
+  'Surquillo': [-12.1122, -77.0181],
+  'Villa El Salvador': [-12.1881, -76.9845],
+  'Villa María del Triunfo': [-12.1614, -76.9422],
+  'Bellavista': [-12.0611, -77.1069],
+  'Callao': [-12.0566, -77.1181],
+  'Carmen de la Legua Reynoso': [-12.0500, -77.0942],
+  'La Perla': [-12.0667, -77.1167],
+  'La Punta': [-12.0663, -77.1368],
+  'Mi Perú': [-11.8489, -77.1214],
+  'Ventanilla': [-11.8747, -77.1281]
+};
+
+function ReportLocationMap({
+  district,
+  onLocationSelect
+}: {
+  district: string;
+  onLocationSelect: (lat: number, lng: number) => void;
+}) {
+  const mapId = useMemo(() => `report-map-${Math.random().toString(36).slice(2)}`, []);
+  const mapRef = useRef<any>(null);
+  const markerRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (!window.L) return;
+
+    const L = window.L;
+    const initialCoords = DISTRICT_COORDINATES[district] || [-12.0464, -77.0428];
+
+    const map = L.map(mapId, {
+      zoomControl: true,
+      scrollWheelZoom: true
+    }).setView(initialCoords, 13);
+
+    mapRef.current = map;
+
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+      attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
+      subdomains: "abcd",
+      maxZoom: 20
+    }).addTo(map);
+
+    const marker = L.marker(initialCoords, {
+      draggable: true
+    }).addTo(map);
+
+    markerRef.current = marker;
+
+    onLocationSelect(initialCoords[0], initialCoords[1]);
+
+    const handleMove = (e: any) => {
+      const latlng = e.target.getLatLng();
+      onLocationSelect(latlng.lat, latlng.lng);
+    };
+
+    marker.on("dragend", handleMove);
+
+    map.on("click", (e: any) => {
+      marker.setLatLng(e.latlng);
+      onLocationSelect(e.latlng.lat, e.latlng.lng);
+    });
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      markerRef.current = null;
+    };
+  }, [mapId]);
+
+  useEffect(() => {
+    if (mapRef.current && markerRef.current && DISTRICT_COORDINATES[district]) {
+      const coords = DISTRICT_COORDINATES[district];
+      mapRef.current.setView(coords, 13);
+      markerRef.current.setLatLng(coords);
+      onLocationSelect(coords[0], coords[1]);
+    }
+  }, [district]);
+
+  return <div id={mapId} className="report-map" />;
+}
+
 function ReportView({ data, csrfToken }: { data?: ReportFormData; csrfToken: string }) {
   const report = data ?? { districts: [], incidentTypes: [] };
+  const [selectedDistrict, setSelectedDistrict] = useState("");
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+
+  const handleLocationSelect = (lat: number, lng: number) => {
+    setLocation({ lat, lng });
+  };
 
   return (
     <section className="workspace">
@@ -418,10 +584,17 @@ function ReportView({ data, csrfToken }: { data?: ReportFormData; csrfToken: str
 
       <form className="surface report-form" method="POST" action="/reports/new">
         <input type="hidden" name="csrf_token" value={csrfToken} />
+        <input type="hidden" name="latitude" value={location ? location.lat : ""} />
+        <input type="hidden" name="longitude" value={location ? location.lng : ""} />
 
         <label className="field">
           <span>Distrito</span>
-          <select name="district" defaultValue="" required>
+          <select
+            name="district"
+            value={selectedDistrict}
+            onChange={(e) => setSelectedDistrict(e.target.value)}
+            required
+          >
             <option value="" disabled>
               Selecciona un distrito
             </option>
@@ -432,6 +605,24 @@ function ReportView({ data, csrfToken }: { data?: ReportFormData; csrfToken: str
             ))}
           </select>
         </label>
+
+        {selectedDistrict && (
+          <div className="report-map-container">
+            <span style={{ display: "block", marginBottom: "8px", fontWeight: 600 }}>
+              Marca la ubicación exacta en el mapa (opcional)
+            </span>
+            <ReportLocationMap
+              district={selectedDistrict}
+              onLocationSelect={handleLocationSelect}
+            />
+            {location && (
+              <div className="coordinates-display">
+                <span>Latitud: <strong>{location.lat.toFixed(6)}</strong></span>
+                <span>Longitud: <strong>{location.lng.toFixed(6)}</strong></span>
+              </div>
+            )}
+          </div>
+        )}
 
         <label className="field">
           <span>Tipo de incidente</span>
@@ -617,7 +808,17 @@ function StatCard({
   );
 }
 
-function IncidentTable({ incidents, compact = false }: { incidents: Incident[]; compact?: boolean }) {
+function IncidentTable({
+  incidents,
+  compact = false,
+  onRowClick,
+  focusedIncidentId
+}: {
+  incidents: Incident[];
+  compact?: boolean;
+  onRowClick?: (incident: Incident) => void;
+  focusedIncidentId?: number;
+}) {
   if (incidents.length === 0) {
     return <div className="empty-state">Sin incidentes para mostrar.</div>;
   }
@@ -636,20 +837,28 @@ function IncidentTable({ incidents, compact = false }: { incidents: Incident[]; 
           </tr>
         </thead>
         <tbody>
-          {incidents.map((incident) => (
-            <tr key={incident.id}>
-              <td className="strong-cell">{incident.district}</td>
-              <td>
-                <span className={`type-badge type-${slugify(incident.incidentType)}`}>{incident.incidentType}</span>
-              </td>
-              <td>{truncate(incident.description, compact ? 52 : 72)}</td>
-              <td>
-                <Severity value={incident.severity} />
-              </td>
-              {!compact && <td>{incident.source}</td>}
-              <td>{formatDateTime(incident.dateReported)}</td>
-            </tr>
-          ))}
+          {incidents.map((incident) => {
+            const isFocused = incident.id === focusedIncidentId;
+            return (
+              <tr
+                key={incident.id}
+                onClick={() => onRowClick?.(incident)}
+                className={onRowClick ? `clickable-row ${isFocused ? "is-focused" : ""}` : ""}
+                style={isFocused ? { backgroundColor: "rgba(20, 184, 166, 0.15)", borderLeft: "4px solid var(--primary)" } : {}}
+              >
+                <td className="strong-cell">{incident.district}</td>
+                <td>
+                  <span className={`type-badge type-${slugify(incident.incidentType)}`}>{incident.incidentType}</span>
+                </td>
+                <td>{truncate(incident.description, compact ? 52 : 72)}</td>
+                <td>
+                  <Severity value={incident.severity} />
+                </td>
+                {!compact && <td>{incident.source}</td>}
+                <td>{formatDateTime(incident.dateReported)}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -685,8 +894,10 @@ function TypeDistribution({ counts }: { counts: { label: string; value: number }
   );
 }
 
-function LeafletHeatmap({ points }: { points: HeatmapPoint[] }) {
+function LeafletHeatmap({ points, focusedPoint }: { points: HeatmapPoint[]; focusedPoint: HeatmapPoint | null }) {
   const mapId = useMemo(() => `street-map-${Math.random().toString(36).slice(2)}`, []);
+  const mapRef = useRef<any>(null);
+  const markersRef = useRef<Record<string, any>>({});
 
   useEffect(() => {
     if (!window.L) {
@@ -698,6 +909,9 @@ function LeafletHeatmap({ points }: { points: HeatmapPoint[] }) {
       zoomControl: true,
       scrollWheelZoom: true
     }).setView([-12.0464, -77.0428], 11);
+
+    mapRef.current = map;
+    markersRef.current = {};
 
     L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
       attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
@@ -737,6 +951,10 @@ function LeafletHeatmap({ points }: { points: HeatmapPoint[] }) {
           Fecha: ${escapeHtml(point.date)}<br>
           ${escapeHtml(point.description)}
         `);
+
+        if (point.id) {
+          markersRef.current[point.id] = marker;
+        }
       });
 
       const bounds = L.latLngBounds(points.map((point) => [point.lat, point.lng]));
@@ -758,8 +976,20 @@ function LeafletHeatmap({ points }: { points: HeatmapPoint[] }) {
 
     return () => {
       map.remove();
+      mapRef.current = null;
+      markersRef.current = {};
     };
   }, [mapId, points]);
+
+  useEffect(() => {
+    if (focusedPoint && mapRef.current) {
+      const map = mapRef.current;
+      map.setView([focusedPoint.lat, focusedPoint.lng], 15, { animate: true });
+      if (focusedPoint.id && markersRef.current[focusedPoint.id]) {
+        markersRef.current[focusedPoint.id].openPopup();
+      }
+    }
+  }, [focusedPoint]);
 
   return <div id={mapId} className="map-canvas" />;
 }

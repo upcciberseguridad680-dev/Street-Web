@@ -14,6 +14,86 @@
   --shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
 }
 
+body.dark-theme,
+html.dark-theme {
+  --bg: #0b1329;
+  --surface: #131c35;
+  --surface-muted: #1a243f;
+  --ink: #f1f5f9;
+  --muted: #94a3b8;
+  --line: #2e3c5a;
+  --nav: #070d1e;
+  --primary: #14b8a6;
+  --primary-strong: #2dd4bf;
+  --blue: #3b82f6;
+  --amber: #fbbf24;
+  --red: #ef4444;
+  --shadow: 0 14px 34px rgba(0, 0, 0, 0.4);
+}
+
+/* Leaflet Dark Theme Overrides */
+body.dark-theme .leaflet-popup-content-wrapper,
+body.dark-theme .leaflet-popup-tip {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+body.dark-theme .leaflet-legend {
+  background: var(--surface) !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--line) !important;
+}
+
+/* Custom styles for components */
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  color: #e5e7eb;
+  padding: 8px;
+  border-radius: 7px;
+  transition: background 0.2s, color 0.2s;
+}
+.theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.report-map-container {
+  margin: 14px 0 20px;
+}
+.report-map {
+  height: 280px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  z-index: 10;
+}
+.coordinates-display {
+  display: flex;
+  gap: 16px;
+  margin-top: 10px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.coordinates-display strong {
+  color: var(--ink);
+}
+
+.clickable-row {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.clickable-row:hover {
+  background: var(--surface-muted) !important;
+}
+body.dark-theme .clickable-row:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+
 * {
   box-sizing: border-box;
 }

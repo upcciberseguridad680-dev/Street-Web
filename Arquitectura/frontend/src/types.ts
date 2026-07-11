@@ -43,6 +43,7 @@ export interface DashboardData {
 }
 
 export interface HeatmapPoint {
+  id?: number;
   lat: number;
   lng: number;
   intensity: number;
