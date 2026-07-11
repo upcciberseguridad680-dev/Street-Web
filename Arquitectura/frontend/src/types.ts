@@ -104,7 +104,6 @@ export interface AppData {
 
 declare global {
   interface Window {
-    __STREET_WEB__?: AppData;
     L?: any;
   }
 }

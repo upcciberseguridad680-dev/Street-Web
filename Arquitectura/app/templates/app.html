@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Street Web - Seguridad en Lima y Callao</title>
-    <script>
+    <script nonce="{{ csp_nonce }}">
         if (localStorage.getItem('theme') === 'dark') {
             document.documentElement.classList.add('dark-theme');
             document.addEventListener('DOMContentLoaded', () => {
@@ -19,9 +19,7 @@
 </head>
 <body>
     <div id="root"></div>
-    <script>
-        window.__STREET_WEB__ = {{ app_data | tojson }};
-    </script>
+    <script id="app-data" type="application/json">{{ app_data | tojson }}</script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
             integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
             crossorigin=""></script>

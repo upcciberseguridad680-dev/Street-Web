@@ -1,5 +1,6 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, g
 import os
+import secrets
 from flask_wtf.csrf import CSRFProtect
 from app.extensions import limiter
 from app.models import db
@@ -61,9 +62,21 @@ def create_app():
     app.register_blueprint(api_bp)
     app.register_blueprint(reports_bp)
 
+    def get_csp_nonce():
+        # Se genera perezosamente (no en before_request) porque CSRFProtect
+        # y el rate limiter registran sus propios before_request ANTES que
+        # este codigo, y pueden abortar la request (CSRF invalido, limite
+        # excedido) sin llegar a correr un before_request nuestro. Si
+        # dependieramos de un before_request y luego lo leyeramos aqui,
+        # el 429/400 que ya generaron ellos se convertiria en un 500 al
+        # intentar leer un g.csp_nonce que nunca se seteo.
+        if not hasattr(g, 'csp_nonce'):
+            g.csp_nonce = secrets.token_urlsafe(16)
+        return g.csp_nonce
+
     @app.context_processor
     def inject_template_helpers():
-        return {'now': lambda: datetime.now(timezone.utc)}
+        return {'now': lambda: datetime.now(timezone.utc), 'csp_nonce': get_csp_nonce()}
 
     # Initialize database and add sample data
     with app.app_context():
@@ -100,12 +113,22 @@ def create_app():
         response.headers['X-Frame-Options'] = 'DENY'
         response.headers['Content-Security-Policy'] = (
             "default-src 'self'; "
-            "script-src 'self' https://unpkg.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
-            "style-src 'self' https://unpkg.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
+            f"script-src 'self' 'nonce-{get_csp_nonce()}' https://unpkg.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
+            # 'unsafe-inline' aqui (no en script-src) es una concesion deliberada:
+            # la UI usa estilos inline dinamicos (colores de severidad/graficos)
+            # en decenas de puntos: exigir nonce en cada uno no es viable y el
+            # riesgo real de permitir CSS inline es mucho menor que permitir JS
+            # inline, que sigue bloqueado sin nonce.
+            "style-src 'self' 'unsafe-inline' https://unpkg.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
             "img-src 'self' data: https://*.basemaps.cartocdn.com"
         )
         response.headers['Permissions-Policy'] = 'geolocation=(), camera=(), microphone=()'
-        response.headers['Cross-Origin-Embedder-Policy'] = 'require-corp'
+        # credentialless en vez de require-corp: require-corp bloqueaba las
+        # teselas del mapa base (CARTO) y otros recursos no-CORS que no envian
+        # Cross-Origin-Resource-Policy. credentialless sigue dando aislamiento
+        # cross-origin (protege contra Spectre) pero permite cargar esos
+        # recursos sin credenciales en vez de bloquearlos por completo.
+        response.headers['Cross-Origin-Embedder-Policy'] = 'credentialless'
         # HSTS - only add in production (when using HTTPS)
         if request.is_secure:
             response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains'
