@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Demasiadas solicitudes - Street Web{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 text-center">
+            <div class="alert alert-warning">
+                <h4 class="alert-heading">¡Demasiadas solicitudes!</h4>
+                <p class="mb-0">
+                    Has realizado demasiadas solicitudes en un corto período de tiempo.
+                    Por favor, espera <strong>{{ retry_after }}</strong> segundos antes de intentarlo nuevamente.
+                </p>
+                <hr>
+                <p class="mb-0">
+                    Esto ayuda a proteger el servicio de uso abusivo y garantiza una buena experiencia
+                    para todos los usuarios.
+                </p>
+            </div>
+
+            <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary mt-3">
+                Volver al inicio
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

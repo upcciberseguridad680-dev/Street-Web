@@ -1,10 +1,13 @@
 from flask import Blueprint, jsonify
 from app.models import Incident
 from app.utils import login_required
+from app.extensions import limiter
+from flask_limiter.util import get_remote_address
 
 api_bp = Blueprint('api', __name__)
 
 @api_bp.route('/api')
+@limiter.limit("60 per minute", key_func=get_remote_address)
 def api_home():
     return jsonify({
         "status": "success",
@@ -16,6 +19,7 @@ def api_home():
 
 @api_bp.route('/api/incidents')
 @login_required
+@limiter.limit("30 per minute", key_func=get_remote_address)
 def api_incidents():
     incidents = Incident.query.filter_by(status='approved').all()
     result = []

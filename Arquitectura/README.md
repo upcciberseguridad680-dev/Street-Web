@@ -11,7 +11,7 @@ Una aplicación web para visualizar y monitorear datos de inseguridad ciudadana 
 - **API REST**: Endpoints para acceder a los datos de incidentes
 - **CI**: Verificación automática con GitHub Actions
 - **Deploy en Render**: Configuración declarativa con `render.yaml`
-- **Análisis de seguridad**: Escaneo SAST integrado con Bandit
+- **Análisis de seguridad**: Escaneo SAST integrado con Bandit, CodeQL y DAST con OWASP ZAP
 - **Dockerizado**: Fácil despliegue en cualquier entorno
 
 ## Arquitectura
@@ -66,6 +66,9 @@ Una aplicación web para visualizar y monitorear datos de inseguridad ciudadana 
 
 ## Despliegue con Docker
 
+### Opción 1: Ejecución simple (datos no persistentes)
+> ⚠️ **Advertencia**: Con este método, los datos se perderán cuando el contenedor se detenga.
+
 1. Construir la imagen:
    ```bash
    docker build -t streetweb .
@@ -75,6 +78,40 @@ Una aplicación web para visualizar y monitorear datos de inseguridad ciudadana 
    ```bash
    docker run -p 5000:5000 streetweb
    ```
+
+### Opción 2: Con persistencia de datos (recomendado para desarrollo)
+Para asegurar que los datos de las cuentas y otros contenidos persistan entre reinicios:
+
+#### Usando Docker Compose (recomendado)
+1. Asegúrate de tener [docker-compose](https://docs.docker.com/compose/install/) instalado
+2. Ejecutar:
+   ```bash
+   docker-compose up --build
+   ```
+   La aplicación estará disponible en http://localhost:5000
+
+#### Usando montaje de volumen manual
+```bash
+docker build -t streetweb .
+docker run -p 5000:5000 \
+  -v "$(pwd)/Arquitectura/instance:/app/instance" \
+  streetweb
+```
+
+### Opción 3: Usando PostgreSQL localmente (más cercano a producción)
+1. Descomentar la sección de la base de datos en `docker-compose.yml`
+2. Actualizar las variables de entorno en el servicio web para usar PostgreSQL
+3. Ejecutar `docker-compose up --build`
+
+## Variables de Entorno
+
+Para configurar la base de datos:
+
+- `DATABASE_URL`: URL de conexión a la base de datos
+  - Para SQLite (desarrollo): `sqlite:///streetweb.db` (predeterminado)
+  - Para PostgreSQL: `postgresql://usuario:contraseña@host:puerto/base_de_datos`
+
+En producción (Render), se proporciona automáticamente la variable `DATABASE_URL` para PostgreSQL.
 
 ## Enlaces de Acceso
 
@@ -102,10 +139,16 @@ El pipeline incluye:
    - Checkout del código
    - Configuración de Python 3.11
    - Instalación de dependencias
+   - Compilación del frontend
    - Verificación de importación de la aplicación
    - Análisis de seguridad estático con Bandit
+   - Análisis de seguridad semántico con CodeQL
+   - Escaneo de vulnerabilidades en sistema de archivos con Trivy FS
+   - Escaneo de vulnerabilidades en imagen Docker con Trivy Image
+   - Auditoría de dependencias Python con pip-audit
+   - Pruebas de seguridad dinámicas (DAST) con OWASP ZAP
 
-El despliegue lo gestiona Render cuando el repositorio está conectado al servicio o Blueprint.
+El despliegue lo gestiona Render cuando el repositorio está conectado al servicio o Blueprint, pero solo después de que pasen todas las etapas de seguridad.
 
 ## Uso de la Aplicación
 
@@ -114,13 +157,6 @@ El despliegue lo gestiona Render cuando el repositorio está conectado al servic
 3. **Dashboard**: Vista general con estadísticas y incidentes recientes
 4. **Mapa de Calor**: Visualiza los incidentes en un mapa interactivo con filtros
 5. **API**: Accede a `/api/incidents` para obtener los datos en formato JSON
-
-## Credenciales de Acceso (Desarrollo)
-
-Para facilitar las pruebas, se crea automáticamente un usuario administrador:
-- Usuario: `admin`
-- Contraseña: `admin123` 
-  **⚠️ Importante: Cambiar esta contraseña en producción**
 
 ## Licencia
 

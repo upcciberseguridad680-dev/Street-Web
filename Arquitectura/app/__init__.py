@@ -1,6 +1,7 @@
-from flask import Flask
+from flask import Flask, request, jsonify, render_template
 import os
 from flask_wtf.csrf import CSRFProtect
+from app.extensions import limiter
 from app.models import db
 from config import config
 from datetime import datetime, timezone
@@ -12,9 +13,40 @@ def create_app():
     env = os.environ.get('APP_ENV') or os.environ.get('FLASK_ENV', 'development')
     app.config.from_object(config.get(env, config['default']))
 
+    # Fail fast in production if required secrets are missing
+    if env == 'production':
+        required_secrets = ['SECRET_KEY', 'ADMIN_PASSWORD']
+        missing = [k for k in required_secrets if not os.environ.get(k)]
+        if missing:
+            raise RuntimeError(f"Missing required environment variables in production: {', '.join(missing)}")
+
     csrf = CSRFProtect(app)
 
     db.init_app(app)
+
+    limiter.init_app(app)
+
+    # Custom error handler for rate limiting
+    def _retry_after_seconds(e):
+        # e.description es siempre un string (ej. "200 per 1 hour"), no
+        # tiene atributo retry_after. El valor real de la ventana vive en
+        # e.limit.limit (un RateLimitItem de la librería `limits`).
+        try:
+            return e.limit.limit.get_expiry()
+        except AttributeError:
+            return 60
+
+    @app.errorhandler(429)
+    def ratelimit_handler(e):
+        retry_after = _retry_after_seconds(e)
+        if request.path.startswith('/api/'):
+            return jsonify({
+                "error": "Rate limit exceeded",
+                "message": "Demasiadas solicitudes. Por favor, inténtelo de nuevo más tarde.",
+                "retry_after": retry_after
+            }), 429
+        else:
+            return render_template('errors/429.html', retry_after=retry_after), 429
 
     # Register Blueprints
     from app.routes.auth import auth_bp
@@ -43,17 +75,41 @@ def create_app():
             admin.set_password(admin_password)
             db.session.add(admin)
         if Incident.query.count() == 0:
+            from app.pnp_sync import fetch_recent_incidents
             from app.sample_data import generate_sample_incidents
-            for inc_data in generate_sample_incidents():
+            incidents_data = fetch_recent_incidents()
+            if not incidents_data:
+                incidents_data = generate_sample_incidents()
+            for inc_data in incidents_data:
                 incident = Incident(status='approved', **inc_data)
                 db.session.add(incident)
             db.session.commit()
+
+    from app.scheduler import start_scheduler
+    start_scheduler(app)
 
     # Health check
     @app.route('/health')
     def health():
         from flask import jsonify
         return jsonify({"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}), 200
+
+    @app.after_request
+    def set_security_headers(response):
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['Content-Security-Policy'] = (
+            "default-src 'self'; "
+            "script-src 'self' https://unpkg.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
+            "style-src 'self' https://unpkg.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
+            "img-src 'self' data: https://*.basemaps.cartocdn.com"
+        )
+        response.headers['Permissions-Policy'] = 'geolocation=(), camera=(), microphone=()'
+        response.headers['Cross-Origin-Embedder-Policy'] = 'require-corp'
+        # HSTS - only add in production (when using HTTPS)
+        if request.is_secure:
+            response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains'
+        return response
 
     return app
 

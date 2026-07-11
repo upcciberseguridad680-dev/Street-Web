@@ -1,0 +1,7 @@
+# CVE-2026-23949 (jaraco.context 5.3.0) y CVE-2026-24049 (wheel 0.45.1):
+# copias vendorizadas dentro de setuptools/_vendor/, no paquetes propios ni
+# alcanzables por la app en tiempo de ejecucion (son herramientas internas
+# de build de setuptools). `pip install --upgrade` no las reemplaza porque
+# no se gestionan como paquetes independientes una vez vendorizadas.
+CVE-2026-23949
+CVE-2026-24049

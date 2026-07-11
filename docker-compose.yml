@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
+      - APP_ENV=development
+      - SECRET_KEY=dev-secret-key-change-in-production
+      # For local development with SQLite, we'll use a volume
+      # For production-like behavior locally, uncomment the following and comment out the SQLite line below
+      # DATABASE_URL=postgresql://username:password@db:5432/streetweb
+    volumes:
+      - ./Arquitectura:/app
+      - ./Arquitectura/instance:/app/instance  # Persist the instance folder which contains SQLite DB
+    depends_on:
+      - db  # Only if using PostgreSQL
+
+  # Uncomment the following section to use PostgreSQL for local development
+  # db:
+  #   image: postgres:13
+  #   environment:
+  #     POSTGRES_USER: username
+  #     POSTGRES_PASSWORD: password
+  #     POSTGRES_DB: streetweb
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data/
+  #   ports:
+  #     - "5432:5432"
+
+# Volumes for persistent data (if using PostgreSQL)
+# volumes:
+#   postgres_data:

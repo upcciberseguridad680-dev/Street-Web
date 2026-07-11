@@ -31,5 +31,14 @@ class Incident(db.Model):
     source = db.Column(db.String(100))
     status = db.Column(db.String(20), default='approved', nullable=False)  # pending | approved | rejected
     reported_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    external_id = db.Column(db.String(50), unique=True, nullable=True)  # id de la fuente externa (ej. PNP), para no duplicar en cada sync
 
     reporter = db.relationship('User', backref='reported_incidents')
+
+
+class LoginAttempt(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), nullable=False, index=True)
+    ip_address = db.Column(db.String(45), nullable=False)  # IPv6 compatible
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    success = db.Column(db.Boolean, default=False, nullable=False)

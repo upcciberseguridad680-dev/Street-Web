@@ -5,7 +5,7 @@ services:
     runtime: python
     rootDir: Arquitectura
     buildCommand: bash build.sh
-    startCommand: gunicorn --bind 0.0.0.0:$PORT run:app
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --timeout 90 run:app
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
@@ -21,7 +21,7 @@ services:
     runtime: python
     rootDir: Arquitectura
     buildCommand: bash build.sh
-    startCommand: gunicorn --bind 0.0.0.0:$PORT run:app
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --timeout 90 run:app
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION

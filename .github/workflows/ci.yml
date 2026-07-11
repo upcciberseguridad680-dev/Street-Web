@@ -1,5 +1,4 @@
 name: CI
-
 on:
   push:
     branches: [main, develop]
@@ -8,52 +7,220 @@ on:
 
 jobs:
   test:
-    name: Tests y analisis de seguridad
+    name: Tests y análisis de seguridad
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: Arquitectura
-
     steps:
-      - name: Checkout codigo
-        uses: actions/checkout@v6
-
+      - uses: actions/checkout@v6
       - name: Configurar Python 3.11
         uses: actions/setup-python@v6
         with:
           python-version: "3.11"
-
       - name: Configurar Node.js
         uses: actions/setup-node@v6
         with:
           node-version: "24"
           cache: npm
           cache-dependency-path: Arquitectura/frontend/package-lock.json
-
       - name: Instalar dependencias
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
       - name: Compilar frontend
         run: |
           cd frontend
           npm ci
           npm run build
-
-      - name: Verificar importacion de la aplicacion
-        run: python -c "from run import app; print('Aplicacion importada correctamente')"
-
-      - name: Analisis de seguridad con Bandit
+      - name: Verificar importación de la aplicación
+        run: python -c "from run import app; print('Aplicación importada correctamente')"
+      - name: Análisis de seguridad con Bandit
         run: |
           pip install bandit
           bandit -r . -ll -ii --exclude ./.venv,./venv,./__pycache__,./frontend/node_modules
 
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{matrix.language}}"
+
+  trivy-fs:
+    name: Trivy FS Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Trivy
+        id: trivy-fs
+        uses: aquasecurity/trivy-action@v0.23.0
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'sarif'
+          output: 'trivy-fs.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+
+  trivy-image:
+    name: Trivy Image Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Build Docker image
+        run: |
+          cd Arquitectura
+          docker build -t myapp:ci .
+      - name: Run Trivy image scan
+        id: trivy-image
+        uses: aquasecurity/trivy-action@v0.23.0
+        with:
+          image-ref: 'myapp:ci'
+          format: 'sarif'
+          output: 'trivy-image.sarif'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          exit-code: '1'
+
+  pip-audit:
+    name: Pip-Audit Dependency Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          cd Arquitectura
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pip-audit jq || echo "pip-audit install failed, continuing"
+          sudo apt-get update && sudo apt-get install -y jq
+      - name: Run pip-audit
+        id: pipaudit
+        run: |
+          cd Arquitectura
+          pip-audit --requirement=requirements.txt --format=json --output=pip-audit.json || true
+      - name: Check for vulnerabilities
+        run: |
+          cd Arquitectura
+          if [ -f pip-audit.json ]; then
+            COUNT=$(jq '[.dependencies[]?.vulns[]?] | length' pip-audit.json 2>/dev/null || echo 0)
+            echo "Found $COUNT vulnerabilities"
+            if [ "$COUNT" -gt 0 ]; then
+              echo "Vulnerabilities found:"
+              jq '.dependencies[] | select(.vulns | length > 0)' pip-audit.json
+              exit 1
+            else
+              echo "No vulnerabilities found."
+            fi
+          else
+            echo "pip-audit.json not found"
+            exit 1
+          fi
+
+  zap:
+    name: OWASP ZAP DAST Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Build Docker image
+        run: |
+          cd Arquitectura
+          docker build -t myapp:ci .
+      - name: Create Docker network
+        run: docker network create zapnet
+      - name: Start application container
+        run: |
+          docker run -d --network zapnet --name app myapp:ci
+          # wait for app to be ready (inside container)
+          for i in {1..60}; do
+            if docker exec app curl -s http://localhost:5000/ > /dev/null 2>&1; then
+              echo "App is ready"
+              break
+            fi
+            echo "Waiting for app..."
+            sleep 2
+          done
+      - name: Set up ZAP output directory
+        run: |
+          mkdir -p zap-out
+          chmod 777 zap-out
+      - name: Run OWASP ZAP baseline scan
+        id: zap
+        run: |
+          set +e
+          docker run --rm \
+            --network zapnet \
+            -v "${{ github.workspace }}/zap-out:/zap/wrk:rw" \
+            -t ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py -t http://app:5000 -r zap-report.html -J zap-report.json -w zap-report.gfm || echo "ZAP completed with exit code $? (checking results)"
+          set -e
+          echo "ZAP scan completed"
+      - name: Stop application container and cleanup
+        if: always()
+        run: |
+          set +e
+          docker stop app
+          docker rm app
+          docker network rm zapnet
+          set -e
+      - name: Check ZAP results for MEDIUM+HIGH severity alerts
+        run: |
+          cd zap-out
+          if [ -f zap-report.json ]; then
+            # Count alerts with riskcode >= 2 (Medium and High)
+            COUNT=$(jq '[.alerts[] | select(.riskcode >= 2)] | length' zap-report.json 2>/dev/null || echo 0)
+            echo "Found $COUNT MEDIUM/HIGH severity alerts"
+            if [ "$COUNT" -gt 0 ]; then
+              echo "ZAP found MEDIUM/HIGH severity security alerts, failing the job"
+              # Optionally print the alerts for debugging
+              jq '.alerts[] | select(.riskcode >= 2)' zap-report.json
+              exit 1
+            else
+              echo "No MEDIUM/HIGH alerts found"
+            fi
+          else
+            echo "ZAP report not found"
+            exit 1
+          fi
+
+  deploy-dev:
+    name: Desplegar en Developer Render
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    needs: [test, codeql, trivy-fs, trivy-image, pip-audit, zap]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
       - name: Desplegar en Developer Render
-        if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
         env:
           RENDER_DEPLOY_HOOK: ${{ secrets.SECRET_DEVELOPER }}
         run: |
+          # Trim whitespace
+          RENDER_DEPLOY_HOOK=$(echo "$RENDER_DEPLOY_HOOK" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+
           if [ -z "$RENDER_DEPLOY_HOOK" ]; then
             echo "::error::Falta configurar el secret SECRET_DEVELOPER con el Deploy Hook de Render."
             exit 1
@@ -62,18 +229,27 @@ jobs:
           case "$RENDER_DEPLOY_HOOK" in
             http://*|https://*) ;;
             *)
-              echo "::error::El secret SECRET_DEVELOPER debe ser una URL valida de Render."
+              echo "::error::El secret SECRET_DEVELOPER debe ser una URL válida de Render."
               exit 1
               ;;
           esac
 
           curl --fail --show-error --silent "$RENDER_DEPLOY_HOOK"
 
+  deploy-prod:
+    name: Desplegar en Production Render
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [test, codeql, trivy-fs, trivy-image, pip-audit, zap]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
       - name: Desplegar en Production Render
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           RENDER_DEPLOY_HOOK: ${{ secrets.SECRET_PRODUCTION }}
         run: |
+          # Trim whitespace
+          RENDER_DEPLOY_HOOK=$(echo "$RENDER_DEPLOY_HOOK" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+
           if [ -z "$RENDER_DEPLOY_HOOK" ]; then
             echo "::error::Falta configurar el secret SECRET_PRODUCTION con el Deploy Hook de Render."
             exit 1
@@ -82,7 +258,7 @@ jobs:
           case "$RENDER_DEPLOY_HOOK" in
             http://*|https://*) ;;
             *)
-              echo "::error::El secret SECRET_PRODUCTION debe ser una URL valida de Render."
+              echo "::error::El secret SECRET_PRODUCTION debe ser una URL válida de Render."
               exit 1
               ;;
           esac
