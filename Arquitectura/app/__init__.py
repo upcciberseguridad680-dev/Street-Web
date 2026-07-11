@@ -84,16 +84,6 @@ def create_app():
         from flask import jsonify
         return jsonify({"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}), 200
 
-    # Custom error handler for 429 Too Many Requests
-    @app.errorhandler(429)
-    def ratelimit_handler(e):
-        from flask import jsonify, request
-        return jsonify({
-            "error": "Rate limit exceeded",
-            "message": "Demasiadas solicitudes. Por favor, inténtalo de nuevo más tarde.",
-            "retry_after": str(getattr(e, 'retry_after', 60))
-        }), 429
-
     @app.after_request
     def set_security_headers(response):
         response.headers['X-Content-Type-Options'] = 'nosniff'
